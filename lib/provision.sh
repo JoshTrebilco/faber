@@ -276,8 +276,8 @@ provision_create() {
         exit 1
     fi
     
-    # Extract app password from output
-    app_password=$(grep "Password:" "$app_output" | head -n 1 | awk '{print $2}')
+    # Extract app password from output (strip ANSI color codes)
+    app_password=$(grep "Password:" "$app_output" | sed 's/\x1b\[[0-9;]*m//g' | head -n 1 | awk '{print $2}')
     rm -f "$app_output"
     
     ((step++))
@@ -322,10 +322,10 @@ provision_create() {
             database_create --name="$username" 2>&1 | tee "$db_output"
         fi
         
-        # Extract database name and password from output
-        dbname_final=$(grep "Database:" "$db_output" | awk '{print $2}')
-        db_password=$(grep "Password:" "$db_output" | awk '{print $2}')
-        db_username=$(grep "Username:" "$db_output" | awk '{print $2}')
+        # Extract database name and password from output (strip ANSI color codes)
+        dbname_final=$(grep "Database:" "$db_output" | sed 's/\x1b\[[0-9;]*m//g' | awk '{print $2}')
+        db_password=$(grep "Password:" "$db_output" | sed 's/\x1b\[[0-9;]*m//g' | awk '{print $2}')
+        db_username=$(grep "Username:" "$db_output" | sed 's/\x1b\[[0-9;]*m//g' | awk '{print $2}')
         rm -f "$db_output"
         
         ((step++))
