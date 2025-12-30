@@ -29,6 +29,10 @@ echo "────────────────────────�
 echo "Deployment started at $(date)"
 echo "─────────────────────────────────────"
 
+# Set umask for secure permissions (750 dirs, 640 files)
+# This ensures new files created by git/composer/npm have correct permissions
+umask 027
+
 # Navigate to project directory
 cd "$REPO_DIR"
 
@@ -77,17 +81,13 @@ if [ -f "artisan" ]; then
     php artisan queue:restart
 fi
 
-# Set permissions
-echo "→ Setting permissions..."
-find "$REPO_DIR" -type d -exec chmod 750 {} \;
-find "$REPO_DIR" -type f -exec chmod 640 {} \;
-
+# Fix permissions on Laravel storage/cache (need to be writable)
 if [ -d "$REPO_DIR/storage" ]; then
-    chmod -R 770 "$REPO_DIR/storage"
+    chmod -R 775 "$REPO_DIR/storage"
 fi
 
 if [ -d "$REPO_DIR/bootstrap/cache" ]; then
-    chmod -R 770 "$REPO_DIR/bootstrap/cache"
+    chmod -R 775 "$REPO_DIR/bootstrap/cache"
 fi
 
 echo "─────────────────────────────────────"

@@ -108,12 +108,16 @@ app_create() {
         exit 1
     fi
     
+    # Add www-data to user's group so nginx can read files
+    echo "  → Configuring web server access..."
+    usermod -a -G "$username" www-data
+    
     # Create directory structure
     echo "  → Creating directory structure..."
     local home_dir="/home/$username"
     mkdir -p "$home_dir"/{wwwroot,logs,.ssh}
     chown -R "$username:$username" "$home_dir"
-    chmod 750 "$home_dir"  # Only owner and group can access
+    chmod 755 "$home_dir"  # Allow traversal (needed for nginx to reach wwwroot)
     chmod 755 "$home_dir/logs"  # Logs readable by web server if needed
     chmod 700 "$home_dir/.ssh"  # SSH keys only for owner
     
@@ -133,6 +137,12 @@ app_create() {
         rm -rf "$home_dir"
         exit 1
     fi
+    
+    # Set web-accessible permissions (group-based access for nginx)
+    echo "  → Setting web permissions..."
+    chown -R "$username:$username" "$home_dir/wwwroot"
+    find "$home_dir/wwwroot" -type d -exec chmod 750 {} \;
+    find "$home_dir/wwwroot" -type f -exec chmod 640 {} \;
     
     # Create PHP-FPM pool
     echo "  → Creating PHP-FPM pool..."
@@ -160,12 +170,27 @@ app_create() {
         setup_laravel "$username"
     fi
     
+    # Ensure web permissions are maintained after Laravel setup
+    find "$home_dir/wwwroot" -type d -exec chmod 750 {} \;
+    find "$home_dir/wwwroot" -type f -exec chmod 640 {} \;
+    
+    # Laravel storage and cache need to be writable by app user
+    if [ -d "$home_dir/wwwroot/storage" ]; then
+        chmod -R 775 "$home_dir/wwwroot/storage"
+        chgrp -R "$username" "$home_dir/wwwroot/storage"
+    fi
+    if [ -d "$home_dir/wwwroot/bootstrap/cache" ]; then
+        chmod -R 775 "$home_dir/wwwroot/bootstrap/cache"
+        chgrp -R "$username" "$home_dir/wwwroot/bootstrap/cache"
+    fi
+    
     # Setup crontab for user
     echo "  → Setting up crontab..."
     setup_user_crontab "$username"
     
-    # Reload nginx
+    # Reload nginx to pick up new group membership
     echo "  → Reloading Nginx..."
+    systemctl reload nginx 2>/dev/null || true
     nginx_reload
     
     # Save to storage (password not saved for security)
@@ -669,8 +694,12 @@ setup_laravel() {
     
     # Set permissions
     chown -R "$username:$username" "$wwwroot"
-    chmod -R 755 "$wwwroot/storage"
-    chmod -R 755 "$wwwroot/bootstrap/cache"
+    # Set group-based permissions (www-data can read via group membership)
+    find "$wwwroot" -type d -exec chmod 750 {} \;
+    find "$wwwroot" -type f -exec chmod 640 {} \;
+    # Storage and cache need to be writable by app user
+    chmod -R 775 "$wwwroot/storage"
+    chmod -R 775 "$wwwroot/bootstrap/cache"
 }
 
 # Helper: Setup user crontab
