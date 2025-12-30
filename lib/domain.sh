@@ -4,6 +4,15 @@
 # Domain Management Functions
 #############################################
 
+# Helper: Cleanup SSL certificate for a domain
+cleanup_ssl_certificate() {
+    local domain=$1
+    if [ -d "/etc/letsencrypt/live/$domain" ]; then
+        certbot revoke --cert-name "$domain" --non-interactive 2>/dev/null || true
+        certbot delete --cert-name "$domain" --non-interactive 2>/dev/null || true
+    fi
+}
+
 # Create domain
 domain_create() {
     local domain=""
@@ -296,13 +305,10 @@ domain_delete() {
     local app=$(echo "$domain_data" | jq -r '.app')
     
     # Revoke and delete SSL certificate if exists
-    if [ "$has_ssl" = "true" ] && [ -d "/etc/letsencrypt/live/$domain" ]; then
+    if [ "$has_ssl" = "true" ]; then
         echo ""
         echo -e "${CYAN}→ Revoking SSL certificate...${NC}"
-        certbot revoke --cert-name "$domain" --non-interactive 2>/dev/null || true
-        
-        echo -e "${CYAN}→ Deleting SSL certificate...${NC}"
-        certbot delete --cert-name "$domain" --non-interactive 2>/dev/null || true
+        cleanup_ssl_certificate "$domain"
     fi
     
     # Reset Nginx configuration to use username only

@@ -633,6 +633,15 @@ delete_domains_by_app() {
     local domain_keys=$(echo "$domains" | jq -r "to_entries[] | select(.value.app == \"$username\") | .key")
     
     for domain in $domain_keys; do
+        # Get domain data to check for SSL
+        local domain_data=$(json_get "${DOMAINS_FILE}" "$domain")
+        local has_ssl=$(echo "$domain_data" | jq -r '.ssl // false')
+        
+        # Cleanup SSL certificate if exists
+        if [ "$has_ssl" = "true" ]; then
+            cleanup_ssl_certificate "$domain"
+        fi
+        
         json_delete "${DOMAINS_FILE}" "$domain"
     done
 }
