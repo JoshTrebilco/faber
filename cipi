@@ -77,6 +77,10 @@ show_help() {
     echo -e "  ${CYAN}status${NC}                          Show server status"
     echo -e "  ${CYAN}version${NC}                         Show Cipi version"
     echo ""
+    echo -e "${BOLD}Provision (Quick Setup):${NC}"
+    echo -e "  ${CYAN}provision create${NC}                Create app, domain, database, SSL, and configure .env"
+    echo -e "  ${CYAN}provision delete <user>${NC}         Delete app and optionally database"
+    echo ""
     echo -e "${BOLD}App Management:${NC}"
     echo -e "  ${CYAN}app create${NC}                      Create a new app"
     echo -e "  ${CYAN}app list${NC}                        List all apps"
@@ -114,6 +118,8 @@ show_help() {
     echo ""
     echo -e "${BOLD}Examples:${NC}"
     echo -e "  cipi status"
+    echo -e "  cipi provision create --user=myapp --repository=https://github.com/user/repo.git --domain=example.com"
+    echo -e "  cipi provision delete myapp --dbname=mydb"
     echo -e "  cipi app create --user=myapp --repository=https://github.com/user/repo.git --php=8.4"
     echo -e "  cipi app edit myapp --php=8.3"
     echo -e "  cipi app env myapp"
@@ -145,6 +151,9 @@ main() {
             ;;
         version)
             show_version
+            ;;
+        provision)
+            cmd_provision "$@"
             ;;
         app)
             cmd_app "$@"

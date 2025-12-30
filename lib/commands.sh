@@ -186,6 +186,26 @@ cmd_service() {
     service_restart "$@"
 }
 
+# Provision commands
+cmd_provision() {
+    local subcmd=$1
+    shift
+    
+    case $subcmd in
+        create)
+            provision_create "$@"
+            ;;
+        delete)
+            provision_delete "$@"
+            ;;
+        *)
+            echo -e "${RED}Unknown provision command: $subcmd${NC}"
+            echo "Usage: cipi provision {create|delete}"
+            exit 1
+            ;;
+    esac
+}
+
 # Update command
 cmd_update() {
     update_cipi "$@"
