@@ -14,6 +14,7 @@ provision_create() {
     local aliases=""
     local dbname=""
     local app_env="production"
+    local interactive=true
     
     # Default: everything enabled
     local skip_db=false
@@ -22,6 +23,13 @@ provision_create() {
     local skip_ssl=false
     local skip_deploy=false
     local ssl_email=""
+    
+    # Track which skip flags were explicitly set via command line
+    local skip_db_set=false
+    local skip_domain_set=false
+    local skip_env_set=false
+    local skip_ssl_set=false
+    local skip_deploy_set=false
     
     # Parse arguments
     for arg in "$@"; do
@@ -52,18 +60,23 @@ provision_create() {
                 ;;
             --skip-db)
                 skip_db=true
+                skip_db_set=true
                 ;;
             --skip-domain)
                 skip_domain=true
+                skip_domain_set=true
                 ;;
             --skip-env)
                 skip_env=true
+                skip_env_set=true
                 ;;
             --skip-ssl)
                 skip_ssl=true
+                skip_ssl_set=true
                 ;;
             --skip-deploy)
                 skip_deploy=true
+                skip_deploy_set=true
                 ;;
             --ssl-email=*)
                 ssl_email="${arg#*=}"
@@ -71,22 +84,153 @@ provision_create() {
         esac
     done
     
+    # Determine interactive mode - if both user and repository provided, run non-interactive
+    if [ -n "$username" ] && [ -n "$repository" ]; then
+        interactive=false
+    fi
+    
+    # Interactive prompts
+    if [ $interactive = true ]; then
+        echo -e "${BOLD}Provision New App${NC}"
+        echo "─────────────────────────────────────"
+        echo ""
+        
+        # Username prompt
+        if [ -z "$username" ]; then
+            default_username=$(generate_username)
+            read -p "Username [$default_username]: " username
+            username=${username:-$default_username}
+        fi
+        
+        # Repository prompt
+        if [ -z "$repository" ]; then
+            read -p "Git repository URL: " repository
+        fi
+        
+        # Branch prompt
+        if [ -z "$branch" ]; then
+            read -p "Git branch [main]: " branch
+            branch=${branch:-main}
+        fi
+        
+        # PHP version prompt
+        echo ""
+        echo "Select PHP version:"
+        local php_versions=($(get_installed_php_versions))
+        local i=1
+        local default_php_index=1
+        for version in "${php_versions[@]}"; do
+            echo "  $i. PHP $version"
+            if [ "$version" = "$php_version" ]; then
+                default_php_index=$i
+            fi
+            ((i++))
+        done
+        read -p "Choice [$default_php_index]: " php_choice
+        php_choice=${php_choice:-$default_php_index}
+        php_version=${php_versions[$((php_choice-1))]}
+        
+        echo ""
+        echo -e "${BOLD}Feature Configuration${NC}"
+        echo "─────────────────────────────────────"
+        
+        # Skip domain prompt
+        if [ "$skip_domain_set" = false ]; then
+            read -p "Create domain? (Y/n): " create_domain
+            if [ "$create_domain" = "n" ] || [ "$create_domain" = "N" ]; then
+                skip_domain=true
+            fi
+        fi
+        
+        # Domain prompt (if not skipping)
+        if [ "$skip_domain" = false ]; then
+            if [ -z "$domain" ]; then
+                read -p "Domain name: " domain
+            fi
+            
+            if [ -z "$aliases" ]; then
+                read -p "Aliases (comma-separated, optional): " aliases
+            fi
+        fi
+        
+        # Skip database prompt
+        if [ "$skip_db_set" = false ]; then
+            read -p "Create database? (Y/n): " create_db
+            if [ "$create_db" = "n" ] || [ "$create_db" = "N" ]; then
+                skip_db=true
+            fi
+        fi
+        
+        # Database name prompt (if not skipping)
+        if [ "$skip_db" = false ] && [ -z "$dbname" ]; then
+            read -p "Database name [$username]: " dbname
+            dbname=${dbname:-$username}
+        fi
+        
+        # Skip env prompt
+        if [ "$skip_env_set" = false ]; then
+            read -p "Update .env file? (Y/n): " update_env
+            if [ "$update_env" = "n" ] || [ "$update_env" = "N" ]; then
+                skip_env=true
+            fi
+        fi
+        
+        # App environment prompt
+        if [ "$skip_env" = false ]; then
+            read -p "APP_ENV [production]: " app_env
+            app_env=${app_env:-production}
+        fi
+        
+        # Skip SSL prompt (only if domain is being created)
+        if [ "$skip_domain" = false ] && [ "$skip_ssl_set" = false ]; then
+            read -p "Setup SSL certificate? (Y/n): " setup_ssl
+            if [ "$setup_ssl" = "n" ] || [ "$setup_ssl" = "N" ]; then
+                skip_ssl=true
+            fi
+        fi
+        
+        # SSL email prompt (if setting up SSL)
+        if [ "$skip_ssl" = false ] && [ "$skip_domain" = false ] && [ -z "$ssl_email" ]; then
+            read -p "SSL email (optional): " ssl_email
+        fi
+        
+        # Skip deploy prompt
+        if [ "$skip_deploy_set" = false ]; then
+            read -p "Run initial deployment? (Y/n): " run_deploy
+            if [ "$run_deploy" = "n" ] || [ "$run_deploy" = "N" ]; then
+                skip_deploy=true
+            fi
+        fi
+        
+        echo ""
+    fi
+    
+    # Set default branch if still empty
+    if [ -z "$branch" ]; then
+        branch="main"
+    fi
+    
+    # Set default dbname to username if not skipping and not set
+    if [ "$skip_db" = false ] && [ -z "$dbname" ]; then
+        dbname="$username"
+    fi
+    
     # Validate required parameters
     if [ -z "$username" ] || [ -z "$repository" ]; then
-        echo -e "${RED}Error: --user and --repository are required${NC}"
+        echo -e "${RED}Error: Username and repository are required${NC}"
         echo ""
-        echo "Usage: cipi provision create --user=USERNAME --repository=REPO_URL [options]"
+        echo "Usage: cipi provision create [options]"
         echo ""
-        echo "Required:"
-        echo "  --user=USERNAME          App username"
+        echo "Run without arguments for interactive mode, or provide options:"
+        echo ""
+        echo "Options:"
+        echo "  --user=USERNAME          App username (auto-generated if not provided)"
         echo "  --repository=REPO_URL    Git repository URL"
-        echo ""
-        echo "Optional:"
-        echo "  --domain=DOMAIN          Domain name (required unless --skip-domain)"
+        echo "  --domain=DOMAIN          Domain name"
         echo "  --branch=BRANCH          Git branch (default: main)"
         echo "  --php=VERSION            PHP version (default: 8.4)"
         echo "  --aliases=ALIASES        Comma-separated domain aliases"
-        echo "  --dbname=DBNAME          Database name (auto-generated if not provided)"
+        echo "  --dbname=DBNAME          Database name (defaults to username)"
         echo "  --env=ENV                APP_ENV value (default: production)"
         echo "  --ssl-email=EMAIL        Email for Let's Encrypt certificate"
         echo ""
@@ -97,12 +241,14 @@ provision_create() {
         echo "  --skip-ssl               Skip SSL certificate setup"
         echo "  --skip-deploy            Skip initial deployment"
         echo ""
+        echo "Non-interactive mode requires at least --user and --repository."
+        echo ""
         exit 1
     fi
     
     # Validate domain if not skipped
     if [ "$skip_domain" = false ] && [ -z "$domain" ]; then
-        echo -e "${RED}Error: --domain is required unless --skip-domain is used${NC}"
+        echo -e "${RED}Error: Domain is required unless domain creation is skipped${NC}"
         exit 1
     fi
     
