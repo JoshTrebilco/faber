@@ -11,7 +11,7 @@ source "${CIPI_LIB_DIR}/php.sh"
 app_create() {
     local username=""
     local repository=""
-    local branch="main"
+    local branch=""
     local php_version="8.4"
     local interactive=true
     
