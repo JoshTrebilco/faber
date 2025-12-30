@@ -48,6 +48,9 @@ provision_create() {
             --domain=*)
                 domain="${arg#*=}"
                 ;;
+            --ssl-email=*)
+                ssl_email="${arg#*=}"
+                ;;
             --aliases=*)
                 aliases="${arg#*=}"
                 ;;
@@ -62,6 +65,10 @@ provision_create() {
                 skip_domain=true
                 skip_domain_set=true
                 ;;
+            --skip-aliases)
+                skip_aliases=true
+                skip_aliases_set=true
+                ;;
             --skip-env)
                 skip_env=true
                 skip_env_set=true
@@ -73,9 +80,6 @@ provision_create() {
             --skip-deploy)
                 skip_deploy=true
                 skip_deploy_set=true
-                ;;
-            --ssl-email=*)
-                ssl_email="${arg#*=}"
                 ;;
         esac
     done
@@ -143,9 +147,21 @@ provision_create() {
             if [ -z "$domain" ]; then
                 read -p "Domain name: " domain
             fi
-            
-            if [ -z "$aliases" ]; then
-                read -p "Aliases (comma-separated, optional): " aliases
+
+            # Skip aliases prompt
+            if [ "$skip_aliases_set" = false ]; then
+                read -p "Create aliases? (y/N): " create_aliases
+                create_aliases=${create_aliases:-N}
+                if [ "$create_aliases" = "N" ]; then
+                    skip_aliases=true
+                fi
+            fi
+
+            # Aliases prompt (if not skipping)
+            if [ "$skip_aliases" = false ]; then
+                if [ -z "$aliases" ]; then
+                    read -p "Aliases (comma-separated, optional): " aliases
+                fi
             fi
         fi
         
