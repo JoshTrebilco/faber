@@ -4,7 +4,7 @@
 # Storage Functions - JSON Data Management
 #############################################
 
-STORAGE_DIR="/etc/cipi"
+STORAGE_DIR="${CIPI_DATA_DIR}"
 APPS_FILE="${STORAGE_DIR}/apps.json"
 DOMAINS_FILE="${STORAGE_DIR}/domains.json"
 DATABASES_FILE="${STORAGE_DIR}/databases.json"

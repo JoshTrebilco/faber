@@ -8,7 +8,7 @@ GITHUB_REPO="JoshTrebilco/cipi"
 GITHUB_API="https://api.github.com/repos/${GITHUB_REPO}"
 GITHUB_RAW="https://raw.githubusercontent.com/${GITHUB_REPO}"
 BRANCH="latest"
-VERSION_FILE="/etc/cipi/version.json"
+VERSION_FILE="${CIPI_DATA_DIR}/version.json"
 
 # Get latest commit from GitHub branch
 get_latest_commit() {
@@ -129,8 +129,8 @@ update_cipi() {
     
     # Backup current installation
     echo "  → Creating backup..."
-    if [ -f /usr/local/bin/cipi ]; then
-        cp /usr/local/bin/cipi /usr/local/bin/cipi.backup
+    if [ -f "${CIPI_BIN}" ]; then
+        cp "${CIPI_BIN}" "${CIPI_BIN}.backup"
     fi
     if [ -d "${CIPI_LIB_DIR}" ]; then
         cp -r "${CIPI_LIB_DIR}" "${CIPI_LIB_DIR}.backup"
@@ -141,9 +141,9 @@ update_cipi() {
     
     # Copy main script
     if [ -f "${tmp_dir}/${extract_dir}/cipi" ]; then
-        cp "${tmp_dir}/${extract_dir}/cipi" /usr/local/bin/cipi
-        chmod 700 /usr/local/bin/cipi
-        chown root:root /usr/local/bin/cipi
+        cp "${tmp_dir}/${extract_dir}/cipi" "${CIPI_BIN}"
+        chmod 700 "${CIPI_BIN}"
+        chown root:root "${CIPI_BIN}"
     fi
     
     # Copy library files
@@ -174,8 +174,8 @@ EOF
     echo -e "${GREEN}${BOLD}Cipi updated successfully!${NC}"
     echo -e "New commit: ${CYAN}${latest_commit:0:7}${NC}"
     echo ""
-    if [ -f /usr/local/bin/cipi.backup ]; then
-        echo "Backup saved at: /usr/local/bin/cipi.backup"
+    if [ -f "${CIPI_BIN}.backup" ]; then
+        echo "Backup saved at: ${CIPI_BIN}.backup"
     fi
     if [ -d "${CIPI_LIB_DIR}.backup" ]; then
         echo "Backup saved at: ${CIPI_LIB_DIR}.backup"
