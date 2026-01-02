@@ -18,6 +18,13 @@ get_webhook_domain() {
     fi
 }
 
+# Get default SSL email
+get_ssl_email() {
+    if [ -f "/etc/cipi/config.json" ]; then
+        jq -r '.ssl_email // empty' /etc/cipi/config.json
+    fi
+}
+
 # Get hostname
 get_hostname() {
     hostname

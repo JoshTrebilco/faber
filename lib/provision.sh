@@ -197,7 +197,13 @@ provision_create() {
         
         # SSL email prompt (if setting up SSL)
         if [ "$skip_ssl" = false ] && [ "$skip_domain" = false ] && [ -z "$ssl_email" ]; then
-            read -p "SSL email (optional): " ssl_email
+            local default_ssl_email=$(get_ssl_email)
+            if [ -n "$default_ssl_email" ]; then
+                read -p "SSL email [$default_ssl_email]: " ssl_email
+                ssl_email=${ssl_email:-$default_ssl_email}
+            else
+                read -p "SSL email: " ssl_email
+            fi
         fi
         
         # Skip deploy prompt
@@ -219,6 +225,11 @@ provision_create() {
     # Set default dbname to username if not skipping and not set
     if [ "$skip_db" = false ] && [ -z "$dbname" ]; then
         dbname="$username"
+    fi
+    
+    # Set default SSL email from config if not provided
+    if [ "$skip_ssl" = false ] && [ "$skip_domain" = false ] && [ -z "$ssl_email" ]; then
+        ssl_email=$(get_ssl_email)
     fi
     
     # Validate required parameters
