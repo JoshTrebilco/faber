@@ -81,9 +81,6 @@ app_create() {
         exit 1
     fi
     
-    # Initialize storage
-    init_storage
-    
     # Check if app already exists
     if json_has_key "${APPS_FILE}" "$username"; then
         echo -e "${RED}Error: App '$username' already exists${NC}"
@@ -248,8 +245,6 @@ EOF
 
 # List apps
 app_list() {
-    init_storage
-    
     echo -e "${BOLD}Apps${NC}"
     echo "─────────────────────────────────────"
     echo ""
@@ -285,8 +280,6 @@ app_show() {
         echo "Usage: cipi app show <username>"
         exit 1
     fi
-    
-    init_storage
     
     if ! json_has_key "${APPS_FILE}" "$username"; then
         echo -e "${RED}Error: App '$username' not found${NC}"
@@ -349,8 +342,6 @@ app_edit() {
         echo "Usage: cipi app edit <username> --php=X.X"
         exit 1
     fi
-    
-    init_storage
     
     if ! json_has_key "${APPS_FILE}" "$username"; then
         echo -e "${RED}Error: App '$username' not found${NC}"
@@ -428,8 +419,6 @@ app_env() {
         echo "Usage: cipi app env <username>"
         exit 1
     fi
-    
-    init_storage
     
     if ! json_has_key "${APPS_FILE}" "$username"; then
         echo -e "${RED}Error: App '$username' not found${NC}"
@@ -538,8 +527,6 @@ app_password() {
         exit 1
     fi
     
-    init_storage
-    
     if ! json_has_key "${APPS_FILE}" "$username"; then
         echo -e "${RED}Error: App '$username' not found${NC}"
         exit 1
@@ -589,8 +576,6 @@ app_delete() {
         echo "Usage: cipi app delete <username>"
         exit 1
     fi
-    
-    init_storage
     
     if ! json_has_key "${APPS_FILE}" "$username"; then
         echo -e "${RED}Error: App '$username' not found${NC}"
@@ -650,7 +635,6 @@ app_delete() {
 # Helper: Get domain by app
 get_domain_by_app() {
     local username=$1
-    init_storage
     local domains=$(json_read "${DOMAINS_FILE}")
     
     echo "$domains" | jq -r "to_entries[] | select(.value.app == \"$username\") | .key" | head -n 1
@@ -659,7 +643,6 @@ get_domain_by_app() {
 # Helper: Get aliases by app
 get_aliases_by_app() {
     local username=$1
-    init_storage
     local domain=$(get_domain_by_app "$username")
     
     if [ -n "$domain" ]; then
@@ -670,7 +653,6 @@ get_aliases_by_app() {
 # Helper: Delete domains by app
 delete_domains_by_app() {
     local username=$1
-    init_storage
     local domains=$(json_read "${DOMAINS_FILE}")
     
     local domain_keys=$(echo "$domains" | jq -r "to_entries[] | select(.value.app == \"$username\") | .key")

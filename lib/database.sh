@@ -106,8 +106,6 @@ EOF
 
 # List databases
 database_list() {
-    init_storage
-    
     echo -e "${BOLD}Databases${NC}"
     echo "─────────────────────────────────────"
     echo ""

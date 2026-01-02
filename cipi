@@ -29,6 +29,8 @@ if [ -d "${CIPI_LIB_DIR}" ]; then
     for lib in "${CIPI_LIB_DIR}"/*.sh; do
         [ -f "$lib" ] && source "$lib"
     done
+    # Initialize storage once at startup
+    init_storage
 fi
 
 # Check if running as root

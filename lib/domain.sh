@@ -59,7 +59,6 @@ domain_create() {
             echo "Select virtual host:"
             
             # Get available apps (those without domains)
-            init_storage
             local available_vhosts=()
             local all_vhosts=($(json_keys "${APPS_FILE}"))
             
@@ -169,7 +168,6 @@ domain_create() {
     fi
     
     # Check if app exists
-    init_storage
     if ! json_has_key "${APPS_FILE}" "$app"; then
         echo -e "${RED}Error: Virtual host '$app' not found${NC}"
         exit 1
@@ -214,8 +212,6 @@ domain_create() {
 
 # List domains
 domain_list() {
-    init_storage
-    
     echo -e "${BOLD}Domains${NC}"
     echo "─────────────────────────────────────"
     echo ""
@@ -311,7 +307,6 @@ domain_delete() {
     
     # Reset Nginx configuration to use username only
     echo -e "${CYAN}→ Resetting Nginx configuration...${NC}"
-    init_storage
     local php_version=$(get_app_field "$app" "php_version")
     
     create_nginx_config "$app" "" "$php_version"
@@ -390,7 +385,6 @@ alias_add() {
     
     # Update Nginx
     echo -e "  → Updating Nginx configuration..."
-    init_storage
     local php_version=$(get_app_field "$app" "php_version")
     
     if [ "$has_ssl" = "true" ]; then
@@ -469,7 +463,6 @@ alias_remove() {
     
     # Update Nginx
     echo -e "  → Updating Nginx configuration..."
-    init_storage
     local php_version=$(get_app_field "$app" "php_version")
     
     if [ "$has_ssl" = "true" ]; then

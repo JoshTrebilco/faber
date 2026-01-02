@@ -16,14 +16,12 @@ generate_webhook_secret() {
 store_webhook_secret() {
     local username=$1
     local secret=$2
-    init_storage
     set_webhook "$username" "$secret"
 }
 
 # Delete webhook secret for an app (wrapper for storage function)
 delete_webhook_secret() {
     local username=$1
-    init_storage
     delete_webhook "$username"
 }
 
@@ -36,8 +34,6 @@ webhook_regenerate_secret() {
         echo "Usage: cipi webhook regenerate <username>"
         exit 1
     fi
-    
-    init_storage
     
     if ! json_has_key "${APPS_FILE}" "$username"; then
         echo -e "${RED}Error: App '$username' not found${NC}"

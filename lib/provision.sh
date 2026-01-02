@@ -310,7 +310,6 @@ provision_create() {
     ((step++))
     
     # Get app home directory
-    init_storage
     local home_dir=$(get_app_field "$username" "home_dir")
     local env_file="$home_dir/wwwroot/.env"
     
@@ -513,8 +512,6 @@ provision_delete() {
         echo "Usage: cipi provision delete <username> [--dbname=DBNAME]"
         exit 1
     fi
-    
-    init_storage
     
     # Check if app exists
     if ! json_has_key "${APPS_FILE}" "$username"; then
