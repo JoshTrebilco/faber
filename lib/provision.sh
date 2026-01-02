@@ -514,10 +514,7 @@ provision_delete() {
     fi
     
     # Check if app exists
-    if ! json_has_key "${APPS_FILE}" "$username"; then
-        echo -e "${RED}Error: App '$username' not found${NC}"
-        exit 1
-    fi
+    check_app_exists "$username"
     
     # Check if database exists (if provided)
     if [ -n "$dbname" ]; then

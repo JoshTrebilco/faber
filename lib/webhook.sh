@@ -35,10 +35,7 @@ webhook_regenerate_secret() {
         exit 1
     fi
     
-    if ! json_has_key "${APPS_FILE}" "$username"; then
-        echo -e "${RED}Error: App '$username' not found${NC}"
-        exit 1
-    fi
+    check_app_exists "$username"
     
     echo -e "${YELLOW}${BOLD}Warning: This will invalidate the current webhook secret!${NC}"
     read -p "Type the username to confirm: " confirm

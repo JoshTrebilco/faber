@@ -82,6 +82,15 @@ json_has_key() {
     jq -e ".[\"$key\"]" "$file" >/dev/null 2>&1
 }
 
+# Check if app exists, exit with error if not
+check_app_exists() {
+    local username=$1
+    if ! json_has_key "${APPS_FILE}" "$username"; then
+        echo -e "${RED}Error: App '$username' not found${NC}"
+        exit 1
+    fi
+}
+
 # Generate unique username
 generate_username() {
     while true; do

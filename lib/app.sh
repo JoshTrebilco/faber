@@ -281,10 +281,7 @@ app_show() {
         exit 1
     fi
     
-    if ! json_has_key "${APPS_FILE}" "$username"; then
-        echo -e "${RED}Error: App '$username' not found${NC}"
-        exit 1
-    fi
+    check_app_exists "$username"
     
     local home_dir=$(get_app_field "$username" "home_dir")
     local php_version=$(get_app_field "$username" "php_version")
@@ -343,10 +340,7 @@ app_edit() {
         exit 1
     fi
     
-    if ! json_has_key "${APPS_FILE}" "$username"; then
-        echo -e "${RED}Error: App '$username' not found${NC}"
-        exit 1
-    fi
+    check_app_exists "$username"
     
     # Get current app data
     local vhost=$(get_app "$username")
@@ -420,10 +414,7 @@ app_env() {
         exit 1
     fi
     
-    if ! json_has_key "${APPS_FILE}" "$username"; then
-        echo -e "${RED}Error: App '$username' not found${NC}"
-        exit 1
-    fi
+    check_app_exists "$username"
     
     local home_dir=$(get_app_field "$username" "home_dir")
     local env_file="$home_dir/wwwroot/.env"
@@ -476,10 +467,7 @@ app_crontab() {
         exit 1
     fi
     
-    if ! json_has_key "${APPS_FILE}" "$username"; then
-        echo -e "${RED}Error: App '$username' not found${NC}"
-        exit 1
-    fi
+    check_app_exists "$username"
     
     echo -e "${BOLD}Edit Crontab for: $username${NC}"
     echo "─────────────────────────────────────"
@@ -527,10 +515,7 @@ app_password() {
         exit 1
     fi
     
-    if ! json_has_key "${APPS_FILE}" "$username"; then
-        echo -e "${RED}Error: App '$username' not found${NC}"
-        exit 1
-    fi
+    check_app_exists "$username"
     
     echo -e "${BOLD}Change Password for: $username${NC}"
     echo "─────────────────────────────────────"
@@ -577,10 +562,7 @@ app_delete() {
         exit 1
     fi
     
-    if ! json_has_key "${APPS_FILE}" "$username"; then
-        echo -e "${RED}Error: App '$username' not found${NC}"
-        exit 1
-    fi
+    check_app_exists "$username"
     
     # Confirm deletion
     echo -e "${YELLOW}${BOLD}Warning: This will permanently delete the virtual host and all its data!${NC}"

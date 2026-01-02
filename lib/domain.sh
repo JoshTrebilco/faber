@@ -168,10 +168,7 @@ domain_create() {
     fi
     
     # Check if app exists
-    if ! json_has_key "${APPS_FILE}" "$app"; then
-        echo -e "${RED}Error: Virtual host '$app' not found${NC}"
-        exit 1
-    fi
+    check_app_exists "$app"
     
     echo ""
     echo -e "${CYAN}Assigning domain...${NC}"
