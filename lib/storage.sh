@@ -124,7 +124,7 @@ generate_password() {
     tr -dc 'A-Za-z0-9!@#$%^&*()_+{}|:<>?=' < /dev/urandom | head -c "$length"
 }
 
-# Check if domain exists (as domain or alias)
+# Check if domain exists
 domain_exists() {
     local domain=$1
     local domains=$(json_read "${DOMAINS_FILE}")
@@ -134,15 +134,10 @@ domain_exists() {
         return 0
     fi
     
-    # Check if it's an alias
-    if echo "$domains" | jq -e ".[] | select(.aliases[]? == \"$domain\")" >/dev/null 2>&1; then
-        return 0
-    fi
-    
     return 1
 }
 
-# Get where domain/alias is used (returns "domain:appname" or "alias:domain:appname")
+# Get where domain is used (returns "domain:appname")
 domain_get_owner() {
     local search=$1
     local domains=$(json_read "${DOMAINS_FILE}")
@@ -151,13 +146,6 @@ domain_get_owner() {
     local app=$(echo "$domains" | jq -r ".[\"$search\"].app // empty")
     if [ -n "$app" ]; then
         echo "domain:$search:$app"
-        return 0
-    fi
-    
-    # Check if it's an alias
-    local result=$(echo "$domains" | jq -r "to_entries[] | select(.value.aliases[]? == \"$search\") | \"alias:\(.key):\(.value.app)\"" | head -n 1)
-    if [ -n "$result" ]; then
-        echo "$result"
         return 0
     fi
     
@@ -230,14 +218,6 @@ get_domain_field() {
     fi
 }
 
-# Get domain aliases as newline-separated list
-get_domain_aliases() {
-    local domain=$1
-    local data=$(get_domain "$domain")
-    if [ -n "$data" ] && [ "$data" != "null" ]; then
-        echo "$data" | jq -r '.aliases[]?' 2>/dev/null
-    fi
-}
 
 #############################################
 # Database Helpers

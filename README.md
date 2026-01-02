@@ -23,7 +23,7 @@ Cipi is a **CLI-based server control panel** designed exclusively for **Laravel 
 - ✨ Create isolated virtual hosts with individual users and PHP versions
 - 🔒 Automatic SSL certificates with Let's Encrypt
 - 🗄️ Manage MySQL databases
-- 🌐 Configure domains and aliases
+- 🌐 Configure domains
 - 🐘 Install and manage multiple PHP versions (5.6 - 8.5)
 - 🔄 Deploy Laravel applications with Git
 - 📊 Monitor server status
@@ -198,7 +198,6 @@ cipi domain create
 # Assign a domain (non-interactive)
 cipi domain create \
   --domain=example.com \
-  --aliases=www.example.com \
   --app=myapp
 
 # List all domains
@@ -206,12 +205,6 @@ cipi domain list
 
 # Delete a domain
 cipi domain delete example.com
-
-# Add alias to domain
-cipi alias add example.com www.example.com
-
-# Remove alias from domain
-cipi alias remove example.com www.example.com
 ```
 
 ### Database Management

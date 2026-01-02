@@ -131,18 +131,9 @@ if [ -z "$DOMAIN" ]; then
     exit 1
 fi
 
-# Get aliases
-ALIASES=$(sudo jq -r ".[\"$DOMAIN\"].aliases[]?" /etc/cipi/domains.json 2>/dev/null | tr '\n' ' ')
-
 # Build domain list for certbot
 DOMAIN_LIST="-d $DOMAIN"
 HAS_WILDCARD=false
-for alias in $ALIASES; do
-    DOMAIN_LIST="$DOMAIN_LIST -d $alias"
-    if [[ "$alias" == *"*"* ]]; then
-        HAS_WILDCARD=true
-    fi
-done
 
 # Check if main domain is wildcard
 if [[ "$DOMAIN" == *"*"* ]]; then
@@ -153,7 +144,6 @@ echo "────────────────────────�
 echo "SSL Certificate Management"
 echo "─────────────────────────────────────"
 echo "Domain: $DOMAIN"
-echo "Aliases: ${ALIASES:-(none)}"
 echo ""
 
 # Email for Let's Encrypt
@@ -208,7 +198,7 @@ else
         sudo chmod 600 /etc/cipi/domains.json
         
         # Trigger Nginx config update with SSL
-        echo "Please run: sudo cipi domain create --domain=$DOMAIN --app=USERNAME_PLACEHOLDER --aliases=\"$ALIASES\""
+        echo "Please run: sudo cipi domain create --domain=$DOMAIN --app=USERNAME_PLACEHOLDER"
         echo "Or wait for the automatic SSL cron job to update the configuration"
     else
         echo "Error: Failed to obtain certificate"

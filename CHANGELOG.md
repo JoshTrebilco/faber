@@ -17,7 +17,7 @@ Cipi has been completely rewritten as a **CLI-only tool** using pure Bash script
 
 - **CLI-based management** - Complete control via `cipi` command
 - **App management** - Create, list, show, and delete virtual hosts
-- **Domain management** - Assign domains and aliases to virtual hosts
+- **Domain management** - Assign domains to virtual hosts
 - **Database management** - Create and manage MySQL databases with secure password handling
 - **PHP version management** - Install and switch between PHP 5.6-8.5
 - **Service management** - Restart nginx, PHP-FPM, MySQL, Supervisor, Redis

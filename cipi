@@ -97,8 +97,6 @@ show_help() {
     echo -e "  ${CYAN}domain create${NC}                   Create/assign a domain"
     echo -e "  ${CYAN}domain list${NC}                     List all domains"
     echo -e "  ${CYAN}domain delete <domain>${NC}          Delete a domain"
-    echo -e "  ${CYAN}alias add <domain> <alias>${NC}      Add alias to domain"
-    echo -e "  ${CYAN}alias remove <domain> <alias>${NC}   Remove alias from domain"
     echo ""
     echo -e "${BOLD}Database Management:${NC}"
     echo -e "  ${CYAN}database create${NC}                 Create a new database"
@@ -134,7 +132,7 @@ show_help() {
     echo -e "  cipi app password myapp"
     echo -e "  cipi database create --name=mydb"
     echo -e "  cipi database password mydb"
-    echo -e "  cipi domain create --domain=example.com --aliases=www.example.com --app=myapp"
+    echo -e "  cipi domain create --domain=example.com --app=myapp"
     echo -e "  cipi logs --lines=100"
     echo ""
 }
@@ -167,9 +165,6 @@ main() {
             ;;
         domain)
             cmd_domain "$@"
-            ;;
-        alias)
-            cmd_alias "$@"
             ;;
         database)
             cmd_database "$@"

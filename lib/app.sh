@@ -288,7 +288,6 @@ app_show() {
     local repository=$(get_app_field "$username" "repository")
     local branch=$(get_app_field "$username" "branch")
     local domain=$(get_domain_by_app "$username")
-    local aliases=$(get_aliases_by_app "$username")
     local disk_space=$(get_disk_space "$home_dir")
     
     echo -e "${BOLD}App: $username${NC}"
@@ -299,7 +298,6 @@ app_show() {
     echo -e "Repository: ${CYAN}$repository${NC}"
     echo -e "Branch:     ${CYAN}$branch${NC}"
     echo -e "Domain:     ${CYAN}${domain:-(no domain)}${NC}"
-    echo -e "Aliases:    ${CYAN}${aliases:-(none)}${NC}"
     echo -e "Disk Space: ${CYAN}$disk_space${NC}"
     echo ""
     echo -e "${BOLD}Git SSH Public Key:${NC}"
@@ -370,10 +368,9 @@ app_edit() {
         local domain=$(get_domain_by_app "$username")
         if [ -n "$domain" ]; then
             local ssl=$(get_domain_field "$domain" "ssl")
-            local aliases=$(get_domain_aliases "$domain" | tr '\n' ' ')
             
             if [ "$ssl" = "true" ]; then
-                add_ssl_to_nginx "$username" "$domain" "$aliases" "$new_php_version"
+                add_ssl_to_nginx "$username" "$domain" "$new_php_version"
             else
                 create_nginx_config "$username" "$domain" "$new_php_version"
             fi
@@ -620,16 +617,6 @@ get_domain_by_app() {
     local domains=$(json_read "${DOMAINS_FILE}")
     
     echo "$domains" | jq -r "to_entries[] | select(.value.app == \"$username\") | .key" | head -n 1
-}
-
-# Helper: Get aliases by app
-get_aliases_by_app() {
-    local username=$1
-    local domain=$(get_domain_by_app "$username")
-    
-    if [ -n "$domain" ]; then
-        get_domain_aliases "$domain" | tr '\n' ', ' | sed 's/,$//'
-    fi
 }
 
 # Helper: Delete domains by app

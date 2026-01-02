@@ -65,11 +65,10 @@ EOF
     ln -sf "${NGINX_SITES_AVAILABLE}/${username}" "${NGINX_SITES_ENABLED}/${username}"
 }
 
-# Update Nginx configuration with domain and aliases
+# Update Nginx configuration with domain
 update_nginx_domain() {
     local username=$1
     local domain=$2
-    local aliases=$3
     
     local config_file="${NGINX_SITES_AVAILABLE}/${username}"
     
@@ -77,44 +76,32 @@ update_nginx_domain() {
         return 1
     fi
     
-    # Build server_name line
-    local server_names="$domain"
-    if [ -n "$aliases" ]; then
-        server_names="$domain $aliases"
-    fi
-    
     # Replace server_name line
-    sed -i "s/server_name .*/server_name $server_names;/" "$config_file"
+    sed -i "s/server_name .*/server_name $domain;/" "$config_file"
 }
 
 # Add SSL to Nginx configuration
 add_ssl_to_nginx() {
     local username=$1
     local domain=$2
-    local aliases=$3
-    local php_version=$4
+    local php_version=$3
     
     local root_path="/home/$username/wwwroot/public"
     local log_path="/home/$username/logs"
     local php_socket="/var/run/php/php${php_version}-fpm-${username}.sock"
     
-    local server_names="$domain"
-    if [ -n "$aliases" ]; then
-        server_names="$domain $aliases"
-    fi
-    
     cat > "${NGINX_SITES_AVAILABLE}/${username}" <<EOF
 server {
     listen 80;
     listen [::]:80;
-    server_name ${server_names};
+    server_name ${domain};
     return 301 https://\$server_name\$request_uri;
 }
 
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
-    server_name ${server_names};
+    server_name ${domain};
     root ${root_path};
     
     ssl_certificate /etc/letsencrypt/live/${domain}/fullchain.pem;

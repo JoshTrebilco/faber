@@ -11,7 +11,6 @@ provision_create() {
     local branch=""
     local php_version="8.4"
     local domain=""
-    local aliases=""
     local dbname=""
     local interactive=true
     
@@ -51,9 +50,6 @@ provision_create() {
             --ssl-email=*)
                 ssl_email="${arg#*=}"
                 ;;
-            --aliases=*)
-                aliases="${arg#*=}"
-                ;;
             --dbname=*)
                 dbname="${arg#*=}"
                 ;;
@@ -64,10 +60,6 @@ provision_create() {
             --skip-domain)
                 skip_domain=true
                 skip_domain_set=true
-                ;;
-            --skip-aliases)
-                skip_aliases=true
-                skip_aliases_set=true
                 ;;
             --skip-env)
                 skip_env=true
@@ -146,22 +138,6 @@ provision_create() {
         if [ "$skip_domain" = false ]; then
             if [ -z "$domain" ]; then
                 read -p "Domain name: " domain
-            fi
-
-            # Skip aliases prompt
-            if [ "$skip_aliases_set" = false ]; then
-                read -p "Create aliases? (y/N): " create_aliases
-                create_aliases=${create_aliases:-N}
-                if [ "$create_aliases" = "N" ]; then
-                    skip_aliases=true
-                fi
-            fi
-
-            # Aliases prompt (if not skipping)
-            if [ "$skip_aliases" = false ]; then
-                if [ -z "$aliases" ]; then
-                    read -p "Aliases (comma-separated, optional): " aliases
-                fi
             fi
         fi
         
@@ -246,7 +222,6 @@ provision_create() {
         echo "  --domain=DOMAIN          Domain name"
         echo "  --branch=BRANCH          Git branch (default: main)"
         echo "  --php=VERSION            PHP version (default: 8.4)"
-        echo "  --aliases=ALIASES        Comma-separated domain aliases"
         echo "  --dbname=DBNAME          Database name (defaults to username)"
         echo "  --ssl-email=EMAIL        Email for Let's Encrypt certificate"
         echo ""
@@ -275,7 +250,6 @@ provision_create() {
     echo -e "Branch:     ${CYAN}$branch${NC}"
     echo -e "PHP:        ${CYAN}$php_version${NC}"
     [ "$skip_domain" = false ] && echo -e "Domain:     ${CYAN}$domain${NC}"
-    [ -n "$aliases" ] && echo -e "Aliases:    ${CYAN}$aliases${NC}"
     echo ""
     
     # Calculate total steps
@@ -317,11 +291,7 @@ provision_create() {
     if [ "$skip_domain" = false ]; then
         echo ""
         echo -e "${CYAN}Step ${step}/${total_steps}: Creating domain...${NC}"
-        if [ -n "$aliases" ]; then
-            domain_create --domain="$domain" --aliases="$aliases" --app="$username"
-        else
-            domain_create --domain="$domain" --app="$username"
-        fi
+        domain_create --domain="$domain" --app="$username"
         
         if [ $? -ne 0 ]; then
             echo -e "${RED}Error: Failed to create domain${NC}"
@@ -397,11 +367,8 @@ provision_create() {
                 if [ -d "/etc/letsencrypt/live/$domain" ]; then
                     echo "  → Updating Nginx configuration with SSL..."
                     
-                    # Get aliases from domain storage
-                    local aliases_str=$(get_domain_aliases "$domain" | tr '\n' ' ')
-                    
                     # Update nginx config with SSL
-                    if add_ssl_to_nginx "$username" "$domain" "$aliases_str" "$php_version"; then
+                    if add_ssl_to_nginx "$username" "$domain" "$php_version"; then
                         # Reload nginx
                         nginx_reload
                         echo "  → SSL certificate installed and configured"
@@ -458,7 +425,6 @@ provision_create() {
     if [ "$skip_domain" = false ]; then
         echo -e "${BOLD}Domain${NC}"
         echo -e "Domain:     ${CYAN}$domain${NC}"
-        [ -n "$aliases" ] && echo -e "Aliases:    ${CYAN}$aliases${NC}"
         echo ""
     fi
     

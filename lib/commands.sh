@@ -103,26 +103,6 @@ cmd_domain() {
     esac
 }
 
-# Alias commands
-cmd_alias() {
-    local subcmd=$1
-    shift
-    
-    case $subcmd in
-        add)
-            alias_add "$@"
-            ;;
-        remove)
-            alias_remove "$@"
-            ;;
-        *)
-            echo -e "${RED}Unknown alias command: $subcmd${NC}"
-            echo "Usage: cipi alias {add|remove} <domain> <alias>"
-            exit 1
-            ;;
-    esac
-}
-
 # Database commands
 cmd_database() {
     local subcmd=$1
