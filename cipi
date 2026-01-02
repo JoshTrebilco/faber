@@ -115,6 +115,7 @@ show_help() {
     echo -e "${BOLD}Webhook Management:${NC}"
     echo -e "  ${CYAN}webhook show <user>${NC}             Show webhook configuration for app"
     echo -e "  ${CYAN}webhook regenerate <user>${NC}       Regenerate webhook secret"
+    echo -e "  ${CYAN}webhook logs${NC}                    View webhook logs"
     echo ""
     echo -e "${BOLD}System Management:${NC}"
     echo -e "  ${CYAN}logs [--lines=N]${NC}                View ClamAV antivirus scan logs"
