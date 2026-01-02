@@ -112,6 +112,10 @@ show_help() {
     echo -e "${BOLD}Service Management:${NC}"
     echo -e "  ${CYAN}service restart <service>${NC}       Restart service (nginx|php|mysql|supervisor|redis)"
     echo ""
+    echo -e "${BOLD}Webhook Management:${NC}"
+    echo -e "  ${CYAN}webhook show <user>${NC}             Show webhook configuration for app"
+    echo -e "  ${CYAN}webhook regenerate <user>${NC}       Regenerate webhook secret"
+    echo ""
     echo -e "${BOLD}System Management:${NC}"
     echo -e "  ${CYAN}logs [--lines=N]${NC}                View ClamAV antivirus scan logs"
     echo -e "  ${CYAN}update${NC}                          Update Cipi to latest version"
@@ -175,6 +179,9 @@ main() {
             ;;
         logs)
             cmd_logs "$@"
+            ;;
+        webhook)
+            cmd_webhook "$@"
             ;;
         update)
             cmd_update "$@"

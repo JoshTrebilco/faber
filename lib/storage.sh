@@ -9,13 +9,15 @@ APPS_FILE="${STORAGE_DIR}/apps.json"
 DOMAINS_FILE="${STORAGE_DIR}/domains.json"
 DATABASES_FILE="${STORAGE_DIR}/databases.json"
 CONFIG_FILE="${STORAGE_DIR}/config.json"
+WEBHOOKS_FILE="${STORAGE_DIR}/webhooks.json"
+VERSION_FILE="${STORAGE_DIR}/version.json"
 
 # Initialize storage
 init_storage() {
     mkdir -p "${STORAGE_DIR}"
     chmod 700 "${STORAGE_DIR}"
     
-    for file in "${APPS_FILE}" "${DOMAINS_FILE}" "${DATABASES_FILE}" "${CONFIG_FILE}"; do
+    for file in "${APPS_FILE}" "${DOMAINS_FILE}" "${DATABASES_FILE}" "${CONFIG_FILE}" "${WEBHOOKS_FILE}" "${VERSION_FILE}"; do
         if [ ! -f "$file" ]; then
             echo "{}" > "$file"
             chmod 600 "$file"

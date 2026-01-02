@@ -6,6 +6,7 @@
 
 source "${CIPI_LIB_DIR}/nginx.sh"
 source "${CIPI_LIB_DIR}/php.sh"
+source "${CIPI_LIB_DIR}/webhook.sh"
 
 # Create app
 app_create() {
@@ -156,6 +157,11 @@ app_create() {
     echo "  → Creating SSL script..."
     create_ssl_script "$username"
     
+    # Generate webhook secret
+    echo "  → Generating webhook secret..."
+    local webhook_secret=$(generate_webhook_secret)
+    store_webhook_secret "$username" "$webhook_secret"
+    
     # Setup log rotation
     echo "  → Setting up log rotation..."
     setup_log_rotation "$username"
@@ -221,9 +227,16 @@ EOF
     echo ""
     echo -e "Key also available at: ${CYAN}$home_dir/gitkey.pub${NC}"
     echo ""
+    echo -e "${CYAN}${BOLD}GitHub Webhook (Auto-Deploy):${NC}"
+    local server_ip=$(get_server_ip)
+    echo -e "URL:           ${CYAN}http://$server_ip/webhook/$username${NC}"
+    echo -e "Content type:  ${CYAN}application/json${NC}"
+    echo -e "Secret:        ${CYAN}$webhook_secret${NC}"
+    echo -e "Events:        ${CYAN}Just the push event${NC}"
+    echo ""
     echo -e "${CYAN}${BOLD}Next Steps:${NC}"
-    echo -e "1. Configure S3 backup: ${CYAN}nano $home_dir/backup.sh${NC}"
-    echo -e "2. Setup deployment: ${CYAN}$home_dir/deploy.sh${NC}"
+    echo -e "1. Configure GitHub webhook with the above settings"
+    echo -e "2. Configure S3 backup: ${CYAN}nano $home_dir/backup.sh${NC}"
     echo -e "3. Assign domain: ${CYAN}cipi domain create${NC}"
     echo ""
 }
@@ -304,7 +317,9 @@ app_show() {
     else
         echo -e "${RED}Not found${NC}"
     fi
-    echo ""
+    
+    # Show webhook information
+    webhook_show "$username"
 }
 
 # Edit app
@@ -615,6 +630,10 @@ app_delete() {
     # Delete log rotation config
     echo "  → Deleting log rotation config..."
     rm -f "/etc/logrotate.d/cipi-$username"
+    
+    # Delete webhook secret
+    echo "  → Deleting webhook secret..."
+    delete_webhook_secret "$username"
     
     # Remove from storage
     json_delete "${APPS_FILE}" "$username"

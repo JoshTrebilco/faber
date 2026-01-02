@@ -239,7 +239,7 @@ create_webhook_docs() {
     cat > "$webhook_doc" <<'WEBHOOKEOF'
 # Webhook Setup Guide
 
-This guide explains how to set up automatic deployments using Git webhooks.
+Cipi provides a secure, centralized webhook system for automatic deployments.
 
 ## GitHub Webhook Setup
 
@@ -254,7 +254,10 @@ This guide explains how to set up automatic deployments using Git webhooks.
    
    **Content type:** `application/json`
    
-   **Secret:** (leave empty for now)
+   **Secret:** Use the webhook secret shown when the app was created, or run:
+   ```bash
+   sudo cipi webhook show USERNAME_PLACEHOLDER
+   ```
    
    **Events:** Select "Just the push event"
    
@@ -262,72 +265,23 @@ This guide explains how to set up automatic deployments using Git webhooks.
 
 4. Click **Add webhook**
 
-## GitLab Webhook Setup
+## View Webhook Configuration
 
-1. Go to your repository on GitLab
-2. Click on **Settings** → **Webhooks**
-3. Configure the webhook:
+To view your webhook URL and secret:
 
-   **URL:**
-   ```
-   http://SERVER_IP_PLACEHOLDER/webhook/USERNAME_PLACEHOLDER
-   ```
-   
-   **Secret Token:** (leave empty for now)
-   
-   **Trigger:** Check "Push events"
-   
-   **Enable SSL verification:** Uncheck (unless you have SSL configured)
-
-4. Click **Add webhook**
-
-## Webhook Endpoint Setup (Nginx)
-
-To receive webhooks, you need to add a webhook endpoint to your Nginx configuration.
-
-Create a webhook handler file at `~/wwwroot/public/webhook.php`:
-
-```php
-<?php
-
-// Verify webhook (optional - add secret validation here)
-$secret = 'your-secret-key'; // Change this!
-
-// Get payload
-$payload = file_get_contents('php://input');
-$data = json_decode($payload, true);
-
-// Log webhook
-file_put_contents(__DIR__ . '/../logs/webhook.log', date('Y-m-d H:i:s') . " - Webhook received\n", FILE_APPEND);
-
-// Trigger deployment
-$output = shell_exec('cd .. && ./deploy.sh 2>&1');
-file_put_contents(__DIR__ . '/../logs/webhook.log', $output . "\n", FILE_APPEND);
-
-// Return success
-http_response_code(200);
-echo json_encode(['status' => 'success', 'message' => 'Deployment triggered']);
-```
-
-Then update your Nginx configuration to handle the webhook URL:
-
-```nginx
-location /webhook/USERNAME_PLACEHOLDER {
-    alias /home/USERNAME_PLACEHOLDER/wwwroot/public;
-    try_files /webhook.php =404;
-    
-    location ~ \.php$ {
-        fastcgi_pass unix:/var/run/php/php8.4-fpm-USERNAME_PLACEHOLDER.sock;
-        fastcgi_param SCRIPT_FILENAME $request_filename;
-        include fastcgi_params;
-    }
-}
-```
-
-After adding the configuration, reload Nginx:
 ```bash
-sudo systemctl reload nginx
+sudo cipi webhook show USERNAME_PLACEHOLDER
 ```
+
+## Regenerate Webhook Secret
+
+If you need to regenerate the webhook secret:
+
+```bash
+sudo cipi webhook regenerate USERNAME_PLACEHOLDER
+```
+
+**Note:** After regenerating, you must update the secret in GitHub!
 
 ## Manual Deployment
 
@@ -338,33 +292,30 @@ cd /home/USERNAME_PLACEHOLDER
 ./deploy.sh
 ```
 
-## Testing
+## Webhook Logs
 
-To test if your webhook is working:
+View webhook activity logs:
 
-1. Make a small change to your repository
-2. Push to your Git provider
-3. Check the webhook logs:
-   ```bash
-   tail -f ~/logs/webhook.log
-   ```
+```bash
+cipi webhook logs
+```
 
-## Security Notes
+## Security Features
 
-- **Always use HTTPS** in production with valid SSL certificates
-- **Add webhook secret verification** in your webhook.php handler
-- **Validate the webhook source** (GitHub/GitLab IP ranges)
-- **Limit webhook access** using firewall rules if needed
+- **HMAC-SHA256 signature validation** - GitHub's recommended method
+- **Secrets stored securely** - Root-only accessible files
+- **Rate limiting** - Prevents abuse
+- **Deployment isolation** - Runs as app user, not root
 
 ## Troubleshooting
 
 If webhooks are not working:
 
-1. Check Nginx error logs: `tail -f ~/logs/error.log`
-2. Check webhook logs: `tail -f ~/logs/webhook.log`
-3. Verify the webhook URL is accessible from the internet
-4. Check file permissions: `ls -la ~/wwwroot/public/webhook.php`
-5. Test manually: `curl http://SERVER_IP_PLACEHOLDER/webhook/USERNAME_PLACEHOLDER`
+1. Check webhook logs: `cipi webhook logs`
+2. Verify the webhook URL is accessible from the internet
+3. Verify the secret matches in GitHub
+4. Check app error logs: `tail -f ~/logs/error.log`
+5. Test deployment manually: `./deploy.sh`
 WEBHOOKEOF
     
     # Replace placeholders

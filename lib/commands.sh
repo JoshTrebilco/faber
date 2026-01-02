@@ -206,6 +206,29 @@ cmd_provision() {
     esac
 }
 
+# Webhook commands
+cmd_webhook() {
+    local subcmd=$1
+    shift
+    
+    case $subcmd in
+        show)
+            webhook_show "$@"
+            ;;
+        regenerate)
+            webhook_regenerate_secret "$@"
+            ;;
+        logs)
+            webhook_logs "$@"
+            ;;
+        *)
+            echo -e "${RED}Unknown webhook command: $subcmd${NC}"
+            echo "Usage: cipi webhook {show|regenerate|logs} <username>"
+            exit 1
+            ;;
+    esac
+}
+
 # Update command
 cmd_update() {
     update_cipi "$@"
