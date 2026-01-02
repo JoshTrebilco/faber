@@ -197,7 +197,7 @@ provision_create() {
         
         # SSL email prompt (if setting up SSL)
         if [ "$skip_ssl" = false ] && [ "$skip_domain" = false ] && [ -z "$ssl_email" ]; then
-            local default_ssl_email=$(get_ssl_email)
+            local default_ssl_email=$(get_config "ssl_email")
             if [ -n "$default_ssl_email" ]; then
                 read -p "SSL email [$default_ssl_email]: " ssl_email
                 ssl_email=${ssl_email:-$default_ssl_email}
@@ -229,7 +229,7 @@ provision_create() {
     
     # Set default SSL email from config if not provided
     if [ "$skip_ssl" = false ] && [ "$skip_domain" = false ] && [ -z "$ssl_email" ]; then
-        ssl_email=$(get_ssl_email)
+        ssl_email=$(get_config "ssl_email")
     fi
     
     # Validate required parameters
@@ -311,8 +311,7 @@ provision_create() {
     
     # Get app home directory
     init_storage
-    local vhost=$(json_get "${APPS_FILE}" "$username")
-    local home_dir=$(echo "$vhost" | jq -r '.home_dir')
+    local home_dir=$(get_app_field "$username" "home_dir")
     local env_file="$home_dir/wwwroot/.env"
     
     # Step 2: Create domain
@@ -400,8 +399,7 @@ provision_create() {
                     echo "  → Updating Nginx configuration with SSL..."
                     
                     # Get aliases from domain storage
-                    local domain_data=$(json_get "${DOMAINS_FILE}" "$domain")
-                    local aliases_str=$(echo "$domain_data" | jq -r '.aliases[]?' 2>/dev/null | tr '\n' ' ')
+                    local aliases_str=$(get_domain_aliases "$domain" | tr '\n' ' ')
                     
                     # Update nginx config with SSL
                     if add_ssl_to_nginx "$username" "$domain" "$aliases_str" "$php_version"; then

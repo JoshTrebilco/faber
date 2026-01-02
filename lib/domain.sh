@@ -179,8 +179,7 @@ domain_create() {
     echo -e "${CYAN}Assigning domain...${NC}"
     
     # Get app data
-    local vhost=$(json_get "${APPS_FILE}" "$app")
-    local php_version=$(echo "$vhost" | jq -r '.php_version')
+    local php_version=$(get_app_field "$app" "php_version")
     
     # Build aliases string for nginx
     local aliases_str="${alias_array[*]}"
@@ -233,9 +232,8 @@ domain_list() {
     echo "─────────────────────────────────────────────────────────────────────────────────────"
     
     for domain in $domains; do
-        local domain_data=$(json_get "${DOMAINS_FILE}" "$domain")
-        local app=$(echo "$domain_data" | jq -r '.app')
-        local aliases=$(echo "$domain_data" | jq -r '.aliases[]?' 2>/dev/null | tr '\n' ', ' | sed 's/,$//')
+        local app=$(get_domain_field "$domain" "app")
+        local aliases=$(get_domain_aliases "$domain" | tr '\n' ', ' | sed 's/,$//')
         aliases=${aliases:-(none)}
         
         printf "%-30s %-40s %-15s\n" "$domain" "$aliases" "$app"
@@ -273,9 +271,9 @@ domain_delete() {
     fi
     
     # Get domain data
-    local domain_data=$(json_get "${DOMAINS_FILE}" "$domain")
-    local aliases=$(echo "$domain_data" | jq -r '.aliases[]?' 2>/dev/null)
-    local has_ssl=$(echo "$domain_data" | jq -r '.ssl // false')
+    local aliases=$(get_domain_aliases "$domain")
+    local has_ssl=$(get_domain_field "$domain" "ssl")
+    has_ssl=${has_ssl:-false}
     
     # Check if domain has aliases
     if [ -n "$aliases" ]; then
@@ -302,7 +300,7 @@ domain_delete() {
         fi
     fi
     
-    local app=$(echo "$domain_data" | jq -r '.app')
+    local app=$(get_domain_field "$domain" "app")
     
     # Revoke and delete SSL certificate if exists
     if [ "$has_ssl" = "true" ]; then
@@ -314,8 +312,7 @@ domain_delete() {
     # Reset Nginx configuration to use username only
     echo -e "${CYAN}→ Resetting Nginx configuration...${NC}"
     init_storage
-    local vhost=$(json_get "${APPS_FILE}" "$app")
-    local php_version=$(echo "$vhost" | jq -r '.php_version')
+    local php_version=$(get_app_field "$app" "php_version")
     
     create_nginx_config "$app" "" "$php_version"
     
@@ -374,9 +371,10 @@ alias_add() {
     echo -e "${CYAN}Adding alias...${NC}"
     
     # Get domain data
-    local domain_data=$(json_get "${DOMAINS_FILE}" "$domain")
-    local app=$(echo "$domain_data" | jq -r '.app')
-    local has_ssl=$(echo "$domain_data" | jq -r '.ssl // false')
+    local domain_data=$(get_domain "$domain")
+    local app=$(get_domain_field "$domain" "app")
+    local has_ssl=$(get_domain_field "$domain" "ssl")
+    has_ssl=${has_ssl:-false}
     
     # Add alias to array
     local tmp=$(mktemp)
@@ -393,8 +391,7 @@ alias_add() {
     # Update Nginx
     echo -e "  → Updating Nginx configuration..."
     init_storage
-    local vhost=$(json_get "${APPS_FILE}" "$app")
-    local php_version=$(echo "$vhost" | jq -r '.php_version')
+    local php_version=$(get_app_field "$app" "php_version")
     
     if [ "$has_ssl" = "true" ]; then
         # Renew certificate with new alias
@@ -446,9 +443,10 @@ alias_remove() {
     echo -e "${CYAN}Removing alias...${NC}"
     
     # Get domain data
-    local domain_data=$(json_get "${DOMAINS_FILE}" "$domain")
-    local app=$(echo "$domain_data" | jq -r '.app')
-    local has_ssl=$(echo "$domain_data" | jq -r '.ssl // false')
+    local domain_data=$(get_domain "$domain")
+    local app=$(get_domain_field "$domain" "app")
+    local has_ssl=$(get_domain_field "$domain" "ssl")
+    has_ssl=${has_ssl:-false}
     
     # Check if alias exists in this domain
     local alias_exists=$(echo "$domain_data" | jq -r ".aliases[]? | select(. == \"$alias\")")
@@ -472,8 +470,7 @@ alias_remove() {
     # Update Nginx
     echo -e "  → Updating Nginx configuration..."
     init_storage
-    local vhost=$(json_get "${APPS_FILE}" "$app")
-    local php_version=$(echo "$vhost" | jq -r '.php_version')
+    local php_version=$(get_app_field "$app" "php_version")
     
     if [ "$has_ssl" = "true" ]; then
         # Renew certificate without removed alias

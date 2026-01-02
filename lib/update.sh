@@ -8,7 +8,6 @@ GITHUB_REPO="JoshTrebilco/cipi"
 GITHUB_API="https://api.github.com/repos/${GITHUB_REPO}"
 GITHUB_RAW="https://raw.githubusercontent.com/${GITHUB_REPO}"
 BRANCH="latest"
-VERSION_FILE="${CIPI_DATA_DIR}/version.json"
 
 # Get latest commit from GitHub branch
 get_latest_commit() {
@@ -17,11 +16,7 @@ get_latest_commit() {
 
 # Get current commit from version file
 get_current_commit() {
-    if [ -f "${VERSION_FILE}" ]; then
-        jq -r '.commit // empty' "${VERSION_FILE}" 2>/dev/null
-    else
-        echo ""
-    fi
+    get_version_commit
 }
 
 # Count commits behind latest
@@ -156,15 +151,7 @@ update_cipi() {
     
     # Update version file with new commit
     echo "  → Updating version information..."
-    mkdir -p "$(dirname "${VERSION_FILE}")"
-    cat > "${VERSION_FILE}" <<EOF
-{
-  "commit": "${latest_commit}",
-  "branch": "${BRANCH}",
-  "installed_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-}
-EOF
-    chmod 600 "${VERSION_FILE}"
+    set_version "$latest_commit" "$BRANCH"
     
     # Cleanup
     echo "  → Cleaning up..."

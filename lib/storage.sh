@@ -181,3 +181,119 @@ set_config() {
     json_set "${CONFIG_FILE}" "$key" "\"$value\""
 }
 
+#############################################
+# App Helpers
+#############################################
+
+# Get app data
+get_app() {
+    local username=$1
+    json_get "${APPS_FILE}" "$username"
+}
+
+# Get specific field from app
+get_app_field() {
+    local username=$1
+    local field=$2
+    local app=$(get_app "$username")
+    if [ -n "$app" ] && [ "$app" != "null" ]; then
+        echo "$app" | jq -r ".$field // empty"
+    fi
+}
+
+#############################################
+# Domain Helpers
+#############################################
+
+# Get domain data
+get_domain() {
+    local domain=$1
+    json_get "${DOMAINS_FILE}" "$domain"
+}
+
+# Get specific field from domain
+get_domain_field() {
+    local domain=$1
+    local field=$2
+    local data=$(get_domain "$domain")
+    if [ -n "$data" ] && [ "$data" != "null" ]; then
+        echo "$data" | jq -r ".$field // empty"
+    fi
+}
+
+# Get domain aliases as newline-separated list
+get_domain_aliases() {
+    local domain=$1
+    local data=$(get_domain "$domain")
+    if [ -n "$data" ] && [ "$data" != "null" ]; then
+        echo "$data" | jq -r '.aliases[]?' 2>/dev/null
+    fi
+}
+
+#############################################
+# Database Helpers
+#############################################
+
+# Get database data
+get_db() {
+    local dbname=$1
+    json_get "${DATABASES_FILE}" "$dbname"
+}
+
+# Get specific field from database
+get_db_field() {
+    local dbname=$1
+    local field=$2
+    local data=$(get_db "$dbname")
+    if [ -n "$data" ] && [ "$data" != "null" ]; then
+        echo "$data" | jq -r ".$field // empty"
+    fi
+}
+
+#############################################
+# Webhook Helpers
+#############################################
+
+# Get webhook secret for user
+get_webhook_secret() {
+    local username=$1
+    local data=$(json_get "${WEBHOOKS_FILE}" "$username")
+    if [ -n "$data" ] && [ "$data" != "null" ]; then
+        echo "$data" | jq -r '.secret // empty'
+    fi
+}
+
+# Set webhook for user
+set_webhook() {
+    local username=$1
+    local secret=$2
+    local webhook_data="{\"secret\": \"$secret\", \"created_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+    json_set "${WEBHOOKS_FILE}" "$username" "$webhook_data"
+}
+
+# Delete webhook for user
+delete_webhook() {
+    local username=$1
+    json_delete "${WEBHOOKS_FILE}" "$username"
+}
+
+#############################################
+# Version Helpers
+#############################################
+
+# Get current version commit
+get_version_commit() {
+    local value=$(json_get "${VERSION_FILE}" "commit")
+    if [ "$value" != "null" ]; then
+        echo "$value"
+    fi
+}
+
+# Set version info
+set_version() {
+    local commit=$1
+    local branch=$2
+    local version_data="{\"commit\": \"$commit\", \"branch\": \"$branch\", \"installed_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+    json_write "${VERSION_FILE}" "$version_data"
+}
+

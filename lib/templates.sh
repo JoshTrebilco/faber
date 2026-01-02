@@ -234,7 +234,7 @@ create_webhook_docs() {
     local username=$1
     local home_dir="/home/$username"
     local webhook_doc="$home_dir/WEBHOOK_SETUP.md"
-    local webhook_domain=$(get_webhook_domain)
+    local webhook_domain=$(get_config "webhook_domain")
     
     cat > "$webhook_doc" <<'WEBHOOKEOF'
 # Webhook Setup Guide

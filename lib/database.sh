@@ -124,9 +124,8 @@ database_list() {
     echo "───────────────────────────────────────────────────────────"
     
     for dbname in $databases; do
-        local db_data=$(json_get "${DATABASES_FILE}" "$dbname")
-        local username=$(echo "$db_data" | jq -r '.username')
-        local created=$(echo "$db_data" | jq -r '.created_at' | cut -d'T' -f1)
+        local username=$(get_db_field "$dbname" "username")
+        local created=$(get_db_field "$dbname" "created_at" | cut -d'T' -f1)
         
         printf "%-20s %-20s %-15s\n" "$dbname" "$username" "$created"
     done
@@ -164,8 +163,7 @@ database_password() {
     echo ""
     
     # Get database data
-    local db_data=$(json_get "${DATABASES_FILE}" "$dbname")
-    local db_username=$(echo "$db_data" | jq -r '.username')
+    local db_username=$(get_db_field "$dbname" "username")
     local root_password=$(get_mysql_root_password)
     
     # Generate or use provided password
@@ -247,8 +245,7 @@ database_delete() {
     echo -e "${CYAN}Deleting database...${NC}"
     
     # Get database data
-    local db_data=$(json_get "${DATABASES_FILE}" "$dbname")
-    local db_username=$(echo "$db_data" | jq -r '.username')
+    local db_username=$(get_db_field "$dbname" "username")
     local root_password=$(get_mysql_root_password)
     
     # Delete database and user

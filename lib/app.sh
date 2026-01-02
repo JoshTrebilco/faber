@@ -228,7 +228,7 @@ EOF
     echo -e "Key also available at: ${CYAN}$home_dir/gitkey.pub${NC}"
     echo ""
     echo -e "${CYAN}${BOLD}GitHub Webhook (Auto-Deploy):${NC}"
-    local webhook_domain=$(get_webhook_domain)
+    local webhook_domain=$(get_config "webhook_domain")
     if [ -n "$webhook_domain" ]; then
         echo -e "URL:           ${CYAN}https://$webhook_domain/webhook/$username${NC}"
     else
@@ -266,8 +266,7 @@ app_list() {
     echo "───────────────────────────────────────────────────────────"
     
     for username in $apps; do
-        local vhost=$(json_get "${APPS_FILE}" "$username")
-        local php_version=$(echo "$vhost" | jq -r '.php_version')
+        local php_version=$(get_app_field "$username" "php_version")
         local domain=$(get_domain_by_app "$username")
         domain=${domain:-"(no domain)"}
         
@@ -294,11 +293,10 @@ app_show() {
         exit 1
     fi
     
-    local vhost=$(json_get "${APPS_FILE}" "$username")
-    local home_dir=$(echo "$vhost" | jq -r '.home_dir')
-    local php_version=$(echo "$vhost" | jq -r '.php_version')
-    local repository=$(echo "$vhost" | jq -r '.repository')
-    local branch=$(echo "$vhost" | jq -r '.branch')
+    local home_dir=$(get_app_field "$username" "home_dir")
+    local php_version=$(get_app_field "$username" "php_version")
+    local repository=$(get_app_field "$username" "repository")
+    local branch=$(get_app_field "$username" "branch")
     local domain=$(get_domain_by_app "$username")
     local aliases=$(get_aliases_by_app "$username")
     local disk_space=$(get_disk_space "$home_dir")
@@ -360,9 +358,9 @@ app_edit() {
     fi
     
     # Get current app data
-    local vhost=$(json_get "${APPS_FILE}" "$username")
-    local current_php=$(echo "$vhost" | jq -r '.php_version')
-    local home_dir=$(echo "$vhost" | jq -r '.home_dir')
+    local vhost=$(get_app "$username")
+    local current_php=$(get_app_field "$username" "php_version")
+    local home_dir=$(get_app_field "$username" "home_dir")
     
     # Edit PHP version
     if [ -n "$new_php_version" ]; then
@@ -386,9 +384,8 @@ app_edit() {
         echo "  → Updating Nginx configuration..."
         local domain=$(get_domain_by_app "$username")
         if [ -n "$domain" ]; then
-            local domain_data=$(json_get "${DOMAINS_FILE}" "$domain")
-            local ssl=$(echo "$domain_data" | jq -r '.ssl')
-            local aliases=$(echo "$domain_data" | jq -r '.aliases[]?' 2>/dev/null | tr '\n' ' ')
+            local ssl=$(get_domain_field "$domain" "ssl")
+            local aliases=$(get_domain_aliases "$domain" | tr '\n' ' ')
             
             if [ "$ssl" = "true" ]; then
                 add_ssl_to_nginx "$username" "$domain" "$aliases" "$new_php_version"
@@ -439,8 +436,7 @@ app_env() {
         exit 1
     fi
     
-    local vhost=$(json_get "${APPS_FILE}" "$username")
-    local home_dir=$(echo "$vhost" | jq -r '.home_dir')
+    local home_dir=$(get_app_field "$username" "home_dir")
     local env_file="$home_dir/wwwroot/.env"
     
     if [ ! -f "$env_file" ]; then
@@ -613,8 +609,7 @@ app_delete() {
     echo ""
     echo -e "${CYAN}Deleting virtual host...${NC}"
     
-    local vhost=$(json_get "${APPS_FILE}" "$username")
-    local php_version=$(echo "$vhost" | jq -r '.php_version')
+    local php_version=$(get_app_field "$username" "php_version")
     
     # Delete associated domains
     echo "  → Deleting associated domains..."
@@ -668,8 +663,7 @@ get_aliases_by_app() {
     local domain=$(get_domain_by_app "$username")
     
     if [ -n "$domain" ]; then
-        local domain_data=$(json_get "${DOMAINS_FILE}" "$domain")
-        echo "$domain_data" | jq -r '.aliases[]?' 2>/dev/null | tr '\n' ', ' | sed 's/,$//'
+        get_domain_aliases "$domain" | tr '\n' ', ' | sed 's/,$//'
     fi
 }
 
@@ -683,8 +677,8 @@ delete_domains_by_app() {
     
     for domain in $domain_keys; do
         # Get domain data to check for SSL
-        local domain_data=$(json_get "${DOMAINS_FILE}" "$domain")
-        local has_ssl=$(echo "$domain_data" | jq -r '.ssl // false')
+        local has_ssl=$(get_domain_field "$domain" "ssl")
+        has_ssl=${has_ssl:-false}
         
         # Cleanup SSL certificate if exists
         if [ "$has_ssl" = "true" ]; then
