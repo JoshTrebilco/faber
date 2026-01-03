@@ -708,7 +708,7 @@ install_webhook() {
     echo ""
     
     while [ -z "$WEBHOOK_DOMAIN" ]; do
-        read -p "Webhook domain (required): " WEBHOOK_DOMAIN
+        read -p "Webhook domain (required): " WEBHOOK_DOMAIN < /dev/tty
         if [ -z "$WEBHOOK_DOMAIN" ]; then
             echo -e "${RED}Error: Domain is required for webhook endpoint${NC}"
         fi
@@ -721,7 +721,7 @@ install_webhook() {
     echo ""
     
     while [ -z "$WEBHOOK_SSL_EMAIL" ]; do
-        read -p "SSL email (required): " WEBHOOK_SSL_EMAIL
+        read -p "SSL email (required): " WEBHOOK_SSL_EMAIL < /dev/tty
         if [ -z "$WEBHOOK_SSL_EMAIL" ]; then
             echo -e "${RED}Error: SSL email is required${NC}"
         fi
@@ -742,7 +742,7 @@ install_webhook() {
     echo "4. Click 'Register application'"
     echo "5. Copy the 'Client ID' (NOT the secret)"
     echo ""
-    read -p "GitHub OAuth Client ID (or press Enter to skip): " GITHUB_CLIENT_ID
+    read -p "GitHub OAuth Client ID (or press Enter to skip): " GITHUB_CLIENT_ID < /dev/tty
     
     if [ -n "$GITHUB_CLIENT_ID" ]; then
         update_config_json "github_client_id" "$GITHUB_CLIENT_ID"
@@ -752,7 +752,7 @@ install_webhook() {
     echo ""
     echo -e "${YELLOW}Note: Make sure DNS is configured to point ${WEBHOOK_DOMAIN} to this server${NC}"
     echo -e "${YELLOW}      before continuing. Press Enter when DNS is ready...${NC}"
-    read -p ""
+    read -p "" < /dev/tty
     
     # Create the PHP webhook handler
     cat > /opt/cipi/webhook.php <<'WEBHOOKPHP'
