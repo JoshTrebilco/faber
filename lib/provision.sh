@@ -342,26 +342,27 @@ provision_create() {
         if [ -f "$home_dir/deploy.sh" ]; then
             cd "$home_dir"
             
-            # Capture full output to show errors if needed
-            local deploy_output=$(mktemp)
-            sudo -u "$username" "$home_dir/deploy.sh" > "$deploy_output" 2>&1
+            # Run deployment and save output to log file
+            local deploy_log="$home_dir/logs/deploy.log"
+            sudo -u "$username" "$home_dir/deploy.sh" > "$deploy_log" 2>&1
             local deploy_exit=$?
             
             # Show filtered progress output
-            grep -E "^(→|─|Deployment)" "$deploy_output" | head -20
+            grep -E "^(→|─|Deployment)" "$deploy_log" | head -20
             
             if [ $deploy_exit -eq 0 ]; then
                 echo "  → Deployment completed"
             else
                 echo -e "  → ${YELLOW}Deployment had issues:${NC}"
-                # Show the last 10 lines of output (likely contains the error)
                 echo ""
-                tail -10 "$deploy_output" | sed 's/^/    /'
+                tail -10 "$deploy_log" | sed 's/^/    /'
                 echo ""
-                echo -e "  ${YELLOW}Full log: sudo -u $username cat $home_dir/logs/deploy.log${NC}"
+                echo -e "  ${YELLOW}Full log: cat $deploy_log${NC}"
                 echo -e "  ${YELLOW}Re-run:   sudo -u $username $home_dir/deploy.sh${NC}"
             fi
-            rm -f "$deploy_output"
+            
+            # Fix log ownership
+            chown "$username:$username" "$deploy_log" 2>/dev/null || true
         else
             echo -e "  → ${YELLOW}Deploy script not found${NC}"
         fi
