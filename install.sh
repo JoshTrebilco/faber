@@ -145,8 +145,12 @@ install_basics() {
     # Install AWS CLI v2
     cd /tmp
     curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-    unzip -q awscliv2.zip
-    ./aws/install
+    unzip -q -o awscliv2.zip
+    if [ -d "/usr/local/aws-cli" ]; then
+        ./aws/install --update
+    else
+        ./aws/install
+    fi
     rm -rf awscliv2.zip aws
     cd -
     
@@ -472,7 +476,23 @@ install_mysql() {
     echo -e "${GREEN}${BOLD}Installing MySQL...${NC}"
     sleep 1
     
-    # Generate root password
+    # Check if MySQL is already configured
+    local existing_password=""
+    if [ -f "/etc/cipi/config.json" ]; then
+        existing_password=$(jq -r '.mysql_root_password // empty' /etc/cipi/config.json 2>/dev/null)
+    fi
+    
+    if [ -n "$existing_password" ]; then
+        echo -e "${YELLOW}MySQL already configured, skipping password setup${NC}"
+        # Just ensure MySQL is installed and running
+        wait_for_apt
+        apt-get install -y mysql-server
+        systemctl enable mysql
+        echo -e "${GREEN}✓ MySQL installed${NC}"
+        return
+    fi
+    
+    # Generate root password (only on first install)
     MYSQL_ROOT_PASSWORD=$(openssl rand -base64 24 | sha256sum | base64 | head -c 32)
     
     # Install MySQL
@@ -1125,35 +1145,39 @@ setup_cron() {
     # Create log directory
     mkdir -p /var/log/cipi
     
-    # Setup root cron jobs
-    (crontab -l 2>/dev/null; cat <<'CRONEOF'
-
+    cat > /etc/cron.d/cipi <<'CRONEOF'
 # ============================================
 # CIPI AUTOMATIC CRON JOBS
+# Managed by Cipi - do not edit manually
 # ============================================
 
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
 # Update ClamAV Virus Definitions (Daily 2 AM)
-0 2 * * * /usr/bin/freshclam >> /var/log/cipi/clamav-update.log 2>&1
+0 2 * * * root /usr/bin/freshclam >> /var/log/cipi/clamav-update.log 2>&1
 
 # ClamAV Daily Scan (3 AM)
-0 3 * * * /usr/local/bin/cipi-scan >> /var/log/cipi/clamav-scan.log 2>&1
+0 3 * * * root /usr/local/bin/cipi-scan >> /var/log/cipi/clamav-scan.log 2>&1
 
 # SSL Certificate Renewal (Weekly Sunday 4:10 AM)
-10 4 * * 0 certbot renew --nginx --non-interactive --post-hook "systemctl restart nginx.service" >> /var/log/cipi/certbot.log 2>&1
+10 4 * * 0 root certbot renew --nginx --non-interactive --post-hook "systemctl restart nginx.service" >> /var/log/cipi/certbot.log 2>&1
 
 # System Updates (Weekly Sunday 4:20 AM)
-20 4 * * 0 apt-get -y update >> /var/log/cipi/updates.log 2>&1
+20 4 * * 0 root apt-get -y update >> /var/log/cipi/updates.log 2>&1
 
 # System Upgrade (Weekly Sunday 4:40 AM)
-40 4 * * 0 DEBIAN_FRONTEND=noninteractive DEBIAN_PRIORITY=critical apt-get -q -y -o "Dpkg::Options::=--force-confdef" -o "Dpkg::Options::=--force-confold" dist-upgrade >> /var/log/cipi/updates.log 2>&1
+40 4 * * 0 root DEBIAN_FRONTEND=noninteractive DEBIAN_PRIORITY=critical apt-get -q -y -o "Dpkg::Options::=--force-confdef" -o "Dpkg::Options::=--force-confold" dist-upgrade >> /var/log/cipi/updates.log 2>&1
 
 # Clean APT Cache (Weekly Sunday 5:20 AM)
-20 5 * * 0 apt-get clean && apt-get autoclean >> /var/log/cipi/updates.log 2>&1
+20 5 * * 0 root apt-get clean && apt-get autoclean >> /var/log/cipi/updates.log 2>&1
 
 # Clear RAM Cache and Swap (Daily 5:50 AM)
-50 5 * * * echo 3 > /proc/sys/vm/drop_caches && swapoff -a && swapon -a
+50 5 * * * root echo 3 > /proc/sys/vm/drop_caches && swapoff -a && swapon -a
 CRONEOF
-    ) | crontab -
+    
+    # Set proper permissions for cron.d file
+    chmod 644 /etc/cron.d/cipi
     
     echo -e "${GREEN}✓ Cron jobs configured${NC}"
 }
