@@ -241,9 +241,18 @@ cmd_reverb() {
         show)
             reverb_show "$@"
             ;;
+        start)
+            reverb_start "$@"
+            ;;
+        stop)
+            reverb_stop "$@"
+            ;;
+        restart)
+            reverb_restart "$@"
+            ;;
         *)
             echo -e "${RED}Unknown reverb command: $subcmd${NC}"
-            echo "Usage: cipi reverb {setup|show}"
+            echo "Usage: cipi reverb {setup|show|start|stop|restart}"
             exit 1
             ;;
     esac

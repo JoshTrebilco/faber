@@ -308,6 +308,16 @@ reverb_setup() {
     supervisorctl update >/dev/null 2>&1
     echo "  → Supervisor config created and loaded"
     
+    # Start the worker
+    echo "  → Starting Reverb worker..."
+    supervisorctl start reverb-worker >/dev/null 2>&1
+    sleep 1
+    if supervisorctl status reverb-worker 2>/dev/null | grep -q "RUNNING"; then
+        echo "  → Worker started successfully"
+    else
+        echo -e "  ${YELLOW}⚠ Worker may need manual start: cipi reverb start${NC}"
+    fi
+    
     echo ""
     echo -e "${CYAN}Step 6/6: Configuring nginx...${NC}"
     create_reverb_nginx_config "$username" "$domain" "$php_version"
@@ -352,6 +362,97 @@ reverb_show() {
     echo -e "${BOLD}Worker Status${NC}"
     echo "─────────────────────────────────────"
     supervisorctl status reverb-worker 2>/dev/null || echo "Worker not running"
+    echo ""
+}
+
+# Start Reverb worker
+reverb_start() {
+    if ! reverb_is_configured; then
+        echo -e "${RED}Error: Reverb is not configured${NC}"
+        echo ""
+        echo "Run: cipi reverb setup"
+        exit 1
+    fi
+    
+    echo -e "${CYAN}Starting Reverb worker...${NC}"
+    
+    # Ensure supervisor config exists and is loaded
+    local username=$(get_reverb_field "app")
+    if [ -n "$username" ]; then
+        create_reverb_supervisor_config "$username"
+        supervisorctl reread >/dev/null 2>&1
+        supervisorctl update >/dev/null 2>&1
+    fi
+    
+    # Start the worker
+    supervisorctl start reverb-worker 2>/dev/null
+    
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}Worker started successfully${NC}"
+        echo ""
+        supervisorctl status reverb-worker
+    else
+        echo -e "${RED}Failed to start worker${NC}"
+        echo ""
+        echo "Try: sudo supervisorctl start reverb-worker"
+        exit 1
+    fi
+    echo ""
+}
+
+# Stop Reverb worker
+reverb_stop() {
+    if ! reverb_is_configured; then
+        echo -e "${RED}Error: Reverb is not configured${NC}"
+        exit 1
+    fi
+    
+    echo -e "${CYAN}Stopping Reverb worker...${NC}"
+    supervisorctl stop reverb-worker 2>/dev/null
+    
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}Worker stopped successfully${NC}"
+    else
+        echo -e "${YELLOW}Worker may not be running${NC}"
+    fi
+    echo ""
+}
+
+# Restart Reverb worker
+reverb_restart() {
+    if ! reverb_is_configured; then
+        echo -e "${RED}Error: Reverb is not configured${NC}"
+        exit 1
+    fi
+    
+    echo -e "${CYAN}Restarting Reverb worker...${NC}"
+    
+    # Ensure supervisor config exists and is loaded
+    local username=$(get_reverb_field "app")
+    if [ -n "$username" ]; then
+        create_reverb_supervisor_config "$username"
+        supervisorctl reread >/dev/null 2>&1
+        supervisorctl update >/dev/null 2>&1
+    fi
+    
+    supervisorctl restart reverb-worker 2>/dev/null
+    
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}Worker restarted successfully${NC}"
+        echo ""
+        supervisorctl status reverb-worker
+    else
+        echo -e "${YELLOW}Worker may not be running, attempting to start...${NC}"
+        supervisorctl start reverb-worker 2>/dev/null
+        if [ $? -eq 0 ]; then
+            echo -e "${GREEN}Worker started successfully${NC}"
+            echo ""
+            supervisorctl status reverb-worker
+        else
+            echo -e "${RED}Failed to start worker${NC}"
+            exit 1
+        fi
+    fi
     echo ""
 }
 
