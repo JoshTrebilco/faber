@@ -9,7 +9,6 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/JoshTrebilco/cipi/releases"><img src="https://img.shields.io/github/v/release/JoshTrebilco/cipi" alt="Latest Release"></a>
   <a href="https://github.com/JoshTrebilco/cipi/blob/latest/LICENSE"><img src="https://img.shields.io/github/license/JoshTrebilco/cipi" alt="License"></a>
   <a href="https://github.com/JoshTrebilco/cipi/stargazers"><img src="https://img.shields.io/github/stars/JoshTrebilco/cipi?style=social" alt="Stars"></a>
 </p>
@@ -114,6 +113,10 @@ wget -O - https://raw.githubusercontent.com/JoshTrebilco/cipi/refs/heads/latest/
 ```
 
 Installation takes approximately **10-15 minutes** depending on your server's internet speed.
+You will be prompted for:
+
+- **Webhook domain** - A domain for webhook endpoints (e.g., `webhooks.yourdomain.com`)
+- **SSL email** - Email address for Let's Encrypt SSL certificates
 
 ### AWS Installation
 
@@ -130,10 +133,32 @@ wget -O - https://raw.githubusercontent.com/JoshTrebilco/cipi/refs/heads/latest/
 - Open ports 22, 80, and 443 in your VPS firewall!
 - **Save the MySQL root password** shown during installation!
 - App and database passwords are **never stored** in config files for security. Save them when displayed!
+- Webhook domain cannot be changed after installation, but SSL email can be changed with `cipi config set ssl_email <email>`
 
 ---
 
 ## 📚 Usage
+
+### Quick Start Example
+
+The fastest way to deploy a Laravel application:
+
+```bash
+# 1. Provision your app (creates everything in one command)
+cipi provision create \
+  --user=myapp \
+  --repository=https://github.com/user/repo.git \
+  --domain=example.com \
+  --php=8.4
+
+# 2. View webhook configuration for auto-deployment
+cipi webhook show myapp
+# Copy the webhook URL and secret to GitHub repository settings
+# Note: Webhook domain and SSL email are set during installation
+
+# 5. Deploy updates manually (or let webhook handle it)
+sudo -u myapp /home/myapp/deploy.sh
+```
 
 ### Basic Commands
 
@@ -147,6 +172,59 @@ cipi help
 # Show Cipi version
 cipi version
 ```
+
+### Provision (Quick Setup)
+
+The `provision` command is the **recommended way** to set up a complete Laravel application. It creates the app, domain, database, configures SSL, updates `.env`, and runs the initial deployment in one command.
+
+```bash
+# Provision a new app (interactive)
+cipi provision create
+
+# Provision a new app (non-interactive)
+cipi provision create \
+  --user=myapp \
+  --repository=https://github.com/user/repo.git \
+  --domain=example.com \
+  --branch=main \
+  --php=8.4 \
+  --dbname=mydb
+
+# Skip optional steps
+cipi provision create \
+  --user=myapp \
+  --repository=https://github.com/user/repo.git \
+  --domain=example.com \
+  --skip-db \
+  --skip-env \
+  --skip-deploy
+
+# Delete app and optionally database
+cipi provision delete myapp
+
+# Delete app and database together
+cipi provision delete myapp --dbname=mydb
+```
+
+**What Provision Does:**
+
+1. **Creates the app** - Sets up virtual host, user, Git repository, PHP-FPM pool, Nginx config, webhook secret
+2. **Assigns domain** - Configures domain and attempts automatic SSL certificate setup
+3. **Creates database** - Generates database with secure credentials
+4. **Updates .env** - Automatically configures:
+   - Database connection (DB_HOST, DB_DATABASE, DB_USERNAME, DB_PASSWORD)
+   - APP_URL (if domain provided)
+   - APP_ENV=production, APP_DEBUG=false
+   - Redis configuration (CACHE_DRIVER, SESSION_DRIVER, REDIS_HOST, etc.)
+   - Queue connection (QUEUE_CONNECTION=database)
+5. **Runs deployment** - Executes initial deployment script (composer install, migrations, cache optimization, etc.)
+
+**Skip Flags:**
+
+- `--skip-db` - Don't create a database
+- `--skip-domain` - Don't assign a domain
+- `--skip-env` - Don't update the .env file
+- `--skip-deploy` - Don't run the initial deployment
 
 ### App Management
 
@@ -164,7 +242,7 @@ cipi app create \
 # List all virtual hosts
 cipi app list
 
-# Show virtual host details
+# Show virtual host details (includes disk space, Git key, webhook info)
 cipi app show myapp
 
 # Change PHP version for a virtual host
@@ -202,7 +280,12 @@ cipi domain list
 
 # Delete a domain
 cipi domain delete example.com
+
+# Delete a domain (skip confirmation)
+cipi domain delete example.com --force
 ```
+
+**Note:** Deleting a domain will revoke and remove the SSL certificate if one exists. The app will still be accessible via its username.
 
 ### Database Management
 
@@ -225,6 +308,14 @@ cipi database password mydb --password=MyDbPass123!
 # Delete a database
 cipi database delete mydb
 ```
+
+**Database Output:**
+
+When creating or changing a database password, Cipi displays:
+
+- Database credentials (name, username, password)
+- Laravel `.env` configuration format
+- SSH tunnel connection string for remote database access
 
 ### PHP Management
 
@@ -258,12 +349,70 @@ cipi service restart supervisor
 cipi service restart redis
 ```
 
-### Auto-Update
+### System Management
 
 ```bash
-# Update Cipi to the latest version
+# View ClamAV antivirus scan logs
+cipi logs
+
+# View last N lines of antivirus logs
+cipi logs --lines=100
+
+# Update Cipi to latest version
 cipi update
 ```
+
+### Webhook Management
+
+Each app automatically gets a webhook secret for GitHub/GitLab auto-deployment. The webhook domain is configured during installation and cannot be changed afterward.
+
+**To view your webhook configuration, always run:**
+
+```bash
+cipi webhook show myapp
+```
+
+This command displays:
+
+- Payload URL (webhook endpoint)
+- Secret (for GitHub/GitLab authentication)
+- Content type and event settings
+
+**Other webhook commands:**
+
+```bash
+# Regenerate webhook secret (invalidates old one)
+cipi webhook regenerate myapp
+
+# View webhook logs (live tail)
+cipi webhook logs
+```
+
+**Setting Up GitHub Webhook:**
+
+1. View your configured webhook: `cipi webhook show myapp`
+   - This shows the Payload URL, Secret, and all configuration details
+   - The webhook domain is set during installation and cannot be changed
+2. In GitHub: Repository → Settings → Webhooks → Add webhook
+3. Use the Payload URL from the command output
+4. Set Content type to `application/json`
+5. Add the Secret from the command output
+6. Select "Just the push event"
+7. Save webhook
+
+### Configuration Management
+
+Configure global Cipi settings that affect SSL certificates.
+
+```bash
+# Change SSL email (set during installation, can be changed)
+cipi config set ssl_email your@email.com
+```
+
+**Configuration Notes:**
+
+- **SSL Email** - Set during installation and used for all Let's Encrypt SSL certificate requests. Let's Encrypt uses this for certificate expiration notifications. Can be changed at any time using `cipi config set ssl_email <email>`.
+- **Webhook Domain** - Set during installation and cannot be changed afterward. To view the configured webhook domain and URL for an app, run `cipi webhook show <username>`.
 
 ---
 
@@ -274,11 +423,18 @@ When you create a virtual host, Cipi creates the following structure:
 ```
 /home/<username>/
 ├── wwwroot/          # Your Laravel project (Git repository)
-├── logs/             # Nginx access & error logs
+├── logs/             # Nginx access & error logs (rotated daily)
 ├── .ssh/             # SSH keys for Git (private repositories)
 ├── deploy.sh         # Deployment script (editable)
 └── gitkey.pub        # SSH public key for GitHub/GitLab
 ```
+
+**Additional System Files:**
+
+- **Log Rotation:** `/etc/logrotate.d/cipi-<username>` - Automatic log rotation (30 days retention)
+- **PHP-FPM Pool:** `/etc/php/<version>/fpm/pool.d/<username>.conf` - PHP-FPM configuration
+- **Nginx Config:** `/etc/nginx/sites-available/<username>` - Nginx virtual host configuration
+- **Webhook Secret:** Stored securely in `/etc/cipi/webhooks.json` (not in user directory)
 
 ### Deployment Script
 
@@ -303,11 +459,10 @@ The script automatically:
 SSL certificates are **automatically configured** when you create a domain. Cipi uses Let's Encrypt to obtain and configure SSL certificates automatically. Certificates are automatically renewed via cron job.
 
 **Note:** For automatic SSL to work, ensure:
+
 - DNS is configured to point your domain to the server
 - Port 80 is accessible from the internet
-- SSL email is configured: `cipi config set ssl_email your@email.com`
-
-Wildcard domains (*.example.com) require manual DNS validation and are not automatically configured.
+- SSL email is set (configured during installation, can be changed with `cipi config set ssl_email <email>`)
 
 ### Private Git Repositories
 
@@ -376,7 +531,7 @@ Cipi automatically checks for updates via cron job (daily at 5:00 AM). You can a
 cipi update
 ```
 
-Updates are pulled from GitHub releases and applied automatically.
+Updates are pulled from GitHub latest branch.
 
 ---
 
@@ -520,24 +675,10 @@ Cipi is open-source software licensed under the [MIT license](LICENSE).
 
 ---
 
-## 📚 Documentation
-
-- [Installation Guide](INSTALL.md) - Complete installation instructions
-- [Quick Start Guide](QUICKSTART.md) - Get up and running in 10 minutes
-- [Features](FEATURES.md) - Complete feature list
-- [Security Guidelines](SECURITY.md) - Password management and security best practices
-- [Upgrade Guide](UPGRADE.md) - How to update Cipi
-- [Contributing](CONTRIBUTING.md) - How to contribute
-- [Changelog](CHANGELOG.md) - Version history
-
----
-
 ## 💬 Support
 
-- 🐛 **Bug Reports:** [GitHub Issues](https://github.com/andreapollastri/cipi/issues)
-- 💡 **Feature Requests:** [GitHub Issues](https://github.com/andreapollastri/cipi/issues)
-- 📧 **Email:** hello@cipi.sh
-- 🌐 **Website:** [cipi.sh](https://cipi.sh)
+- 🐛 **Bug Reports:** [GitHub Issues](https://github.com/JoshTrebilco/cipi/issues)
+- 💡 **Feature Requests:** [GitHub Issues](https://github.com/JoshTrebilco/cipi/issues)
 
 ---
 
@@ -549,9 +690,9 @@ If you find Cipi useful, please consider giving it a star on GitHub!
 
 ## 🙏 Acknowledgments
 
-- Built with ❤️ by [Andrea Pollastri](https://github.com/andreapollastri)
+- Built by [Josh Trebilco](https://github.com/JoshTrebilco)
+- Forked from Cipi. Built by [Andrea Pollastri](https://github.com/andreapollastri/cipi)
 - Inspired by server management tools like Forge, RunCloud, and Ploi
-- Thanks to all contributors!
 
 ---
 
