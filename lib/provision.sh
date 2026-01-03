@@ -342,21 +342,15 @@ provision_create() {
         if [ -f "$home_dir/deploy.sh" ]; then
             cd "$home_dir"
             
-            # Run deployment and save output to log file
+            # Run deployment with live output and save to log file
             local deploy_log="$home_dir/logs/deploy.log"
-            sudo -u "$username" "$home_dir/deploy.sh" > "$deploy_log" 2>&1
-            local deploy_exit=$?
-            
-            # Show filtered progress output (arrows, dividers, errors, completion)
-            grep -E "^(→|─|Deployment|  ✗)" "$deploy_log" | head -25
+            sudo -u "$username" "$home_dir/deploy.sh" 2>&1 | tee "$deploy_log"
+            local deploy_exit=${PIPESTATUS[0]}
             
             if [ $deploy_exit -eq 0 ]; then
                 echo "  → Deployment completed"
             else
-                echo -e "  → ${YELLOW}Deployment had issues:${NC}"
-                echo ""
-                tail -10 "$deploy_log" | sed 's/^/    /'
-                echo ""
+                echo -e "  → ${YELLOW}Deployment had issues (exit code: $deploy_exit)${NC}"
                 echo -e "  ${YELLOW}Full log: cat $deploy_log${NC}"
                 echo -e "  ${YELLOW}Re-run:   sudo -u $username $home_dir/deploy.sh${NC}"
             fi
