@@ -769,9 +769,17 @@ install_webhook() {
         echo -e "${GREEN}✓ GitHub OAuth Client ID saved${NC}"
     fi
     
+    # Get server IP for DNS example
+    local SERVER_IP=$(curl -s https://checkip.amazonaws.com)
+    
     echo ""
-    echo -e "${YELLOW}Note: Make sure DNS is configured to point ${WEBHOOK_DOMAIN} to this server${NC}"
-    echo -e "${YELLOW}      before continuing. Press Enter when DNS is ready...${NC}"
+    echo -e "${YELLOW}${BOLD}DNS Configuration Required${NC}"
+    echo -e "${YELLOW}─────────────────────────────────────${NC}"
+    echo -e "${YELLOW}Create an A record pointing to this server:${NC}"
+    echo ""
+    echo -e "  ${CYAN}${WEBHOOK_DOMAIN}${NC}  →  ${CYAN}${SERVER_IP}${NC}"
+    echo ""
+    echo -e "${YELLOW}Press Enter when DNS is ready...${NC}"
     read -p "" < /dev/tty
     
     # Create the PHP webhook handler
