@@ -67,6 +67,29 @@ stopwaitsecs=3600
 EOF
 }
 
+# Reload supervisor config for Reverb
+supervisor_reload_reverb() {
+    supervisorctl reread
+    supervisorctl update
+}
+
+# Wait for Reverb worker to reach a state (default: RUNNING)
+# Returns 0 if reached, 1 if timeout
+wait_for_reverb_worker() {
+    local target_state="${1:-RUNNING}"
+    local timeout="${2:-10}"
+    local wait_time=0
+    
+    while [ $wait_time -lt $timeout ]; do
+        if supervisorctl status reverb-worker 2>/dev/null | grep -qE "$target_state"; then
+            return 0
+        fi
+        sleep 1
+        ((wait_time++))
+    done
+    return 1
+}
+
 # Set file limits for Reverb user (production optimization)
 set_reverb_file_limits() {
     local username=$1
@@ -304,15 +327,12 @@ reverb_setup() {
     echo ""
     echo -e "${CYAN}Step 5/6: Creating supervisor config...${NC}"
     create_reverb_supervisor_config "$username"
-    supervisorctl reread
-    supervisorctl update
+    supervisor_reload_reverb
     echo "  → Supervisor config created and loaded"
     
-    # Start the worker
+    # Wait for autostart to kick in (config has autostart=true)
     echo "  → Starting Reverb worker..."
-    supervisorctl start reverb-worker
-    sleep 1
-    if supervisorctl status reverb-worker | grep -q "RUNNING"; then
+    if wait_for_reverb_worker "RUNNING" 10; then
         echo "  → Worker started successfully"
     else
         echo -e "  ${YELLOW}⚠ Worker may need manual start: cipi reverb start${NC}"
@@ -381,12 +401,15 @@ reverb_start() {
     local username=$(get_reverb_field "app")
     if [ -n "$username" ]; then
         create_reverb_supervisor_config "$username"
-        supervisorctl reread
-        supervisorctl update
+        supervisor_reload_reverb
     fi
     
-    # Start the worker
-    if supervisorctl start reverb-worker; then
+    # Wait for autostart, or try explicit start
+    if wait_for_reverb_worker "RUNNING" 10; then
+        echo -e "${GREEN}Worker started successfully${NC}"
+        echo ""
+        supervisorctl status reverb-worker
+    elif supervisorctl start reverb-worker; then
         echo -e "${GREEN}Worker started successfully${NC}"
         echo ""
         supervisorctl status reverb-worker
@@ -428,24 +451,29 @@ reverb_restart() {
     local username=$(get_reverb_field "app")
     if [ -n "$username" ]; then
         create_reverb_supervisor_config "$username"
-        supervisorctl reread
-        supervisorctl update
+        supervisor_reload_reverb
     fi
     
-    if supervisorctl restart reverb-worker; then
-        echo -e "${GREEN}Worker restarted successfully${NC}"
-        echo ""
-        supervisorctl status reverb-worker
-    else
-        echo -e "${YELLOW}Worker may not be running, attempting to start...${NC}"
-        if supervisorctl start reverb-worker; then
-            echo -e "${GREEN}Worker started successfully${NC}"
+    # Wait for process to be registered
+    wait_for_reverb_worker "RUNNING|STOPPED" 10
+    
+    # Check if running and restart, otherwise start
+    if supervisorctl status reverb-worker 2>/dev/null | grep -q "RUNNING"; then
+        if supervisorctl restart reverb-worker; then
+            echo -e "${GREEN}Worker restarted successfully${NC}"
             echo ""
             supervisorctl status reverb-worker
         else
-            echo -e "${RED}Failed to start worker${NC}"
+            echo -e "${RED}Failed to restart worker${NC}"
             exit 1
         fi
+    elif supervisorctl start reverb-worker; then
+        echo -e "${GREEN}Worker started successfully${NC}"
+        echo ""
+        supervisorctl status reverb-worker
+    else
+        echo -e "${RED}Failed to start worker${NC}"
+        exit 1
     fi
     echo ""
 }
@@ -482,8 +510,7 @@ reverb_delete() {
     
     echo -e "${CYAN}Removing supervisor config...${NC}"
     rm -f /etc/supervisor/conf.d/reverb-worker.conf
-    supervisorctl reread
-    supervisorctl update
+    supervisor_reload_reverb
     
     echo -e "${CYAN}Deleting Reverb app...${NC}"
     provision_delete "$username" --force
