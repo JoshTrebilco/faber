@@ -44,6 +44,23 @@ git pull origin BRANCH_PLACEHOLDER
 if [ -f "artisan" ]; then
     echo "→ Laravel project detected"
     
+    # Create .env file if it doesn't exist
+    if [ ! -f ".env" ]; then
+        if [ -f ".env.example" ]; then
+            echo "→ Creating .env from .env.example..."
+            cp .env.example .env
+        else
+            echo "→ Creating empty .env file..."
+            touch .env
+        fi
+    fi
+    
+    # Generate application key if not set
+    if ! grep -q "^APP_KEY=" .env 2>/dev/null || grep -q "^APP_KEY=$" .env 2>/dev/null; then
+        echo "→ Generating application key..."
+        php artisan key:generate
+    fi
+    
     # Composer install
     echo "→ Installing Composer dependencies..."
     composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev

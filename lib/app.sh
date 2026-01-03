@@ -201,13 +201,7 @@ app_create() {
     echo "  → Setting up log rotation..."
     setup_log_rotation "$username"
     
-    # Setup Laravel (if detected)
-    if [ -f "$home_dir/wwwroot/artisan" ]; then
-        echo "  → Detected Laravel application, setting up..."
-        setup_laravel "$username"
-    fi
-    
-    # Ensure web permissions are maintained after Laravel setup
+    # Ensure web permissions are maintained
     find "$home_dir/wwwroot" -type d -exec chmod 750 {} \;
     find "$home_dir/wwwroot" -type f -exec chmod 640 {} \;
     
@@ -752,33 +746,6 @@ delete_domain_by_app() {
         
         json_delete "${DOMAINS_FILE}" "$domain"
     fi
-}
-
-# Helper: Setup Laravel
-setup_laravel() {
-    local username=$1
-    local home_dir="/home/$username"
-    local wwwroot="$home_dir/wwwroot"
-    
-    cd "$wwwroot"
-    
-    # Install composer dependencies
-    sudo -u "$username" composer install --no-interaction --prefer-dist --optimize-autoloader 2>/dev/null
-    
-    # Create .env if not exists
-    if [ ! -f "$wwwroot/.env" ] && [ -f "$wwwroot/.env.example" ]; then
-        sudo -u "$username" cp "$wwwroot/.env.example" "$wwwroot/.env"
-        sudo -u "$username" php artisan key:generate
-    fi
-    
-    # Set permissions
-    chown -R "$username:$username" "$wwwroot"
-    # Set group-based permissions (www-data can read via group membership)
-    find "$wwwroot" -type d -exec chmod 750 {} \;
-    find "$wwwroot" -type f -exec chmod 640 {} \;
-    # Storage and cache need to be writable by app user
-    chmod -R 775 "$wwwroot/storage"
-    chmod -R 775 "$wwwroot/bootstrap/cache"
 }
 
 # Helper: Setup user crontab
