@@ -79,21 +79,24 @@ webhook_logs() {
 # Automatically setup webhook on GitHub using Device Flow
 webhook_setup() {
     local username=$1
+    local repository=$2  # Optional: can be passed to avoid requiring app JSON
     
     if [ -z "$username" ]; then
         echo -e "${RED}Error: Username required${NC}"
-        echo "Usage: cipi webhook setup <username>"
+        echo "Usage: cipi webhook setup <username> [repository]"
         exit 1
     fi
     
-    check_app_exists "$username"
-    
-    # Get repository info
-    local repository=$(get_app_field "$username" "repository")
-    
+    # Only check app exists if repository not provided (standalone call)
     if [ -z "$repository" ]; then
-        echo -e "${RED}Error: Repository not found for app '$username'${NC}"
-        exit 1
+        check_app_exists "$username"
+        # Get repository info from app JSON
+        repository=$(get_app_field "$username" "repository")
+        
+        if [ -z "$repository" ]; then
+            echo -e "${RED}Error: Repository not found for app '$username'${NC}"
+            exit 1
+        fi
     fi
     
     # Get webhook configuration

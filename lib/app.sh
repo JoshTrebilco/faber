@@ -193,7 +193,8 @@ app_create() {
     if [ -n "$github_client_id" ]; then
         echo "  → Setting up GitHub webhook..."
         # Run in subshell to catch exit without stopping app creation
-        (webhook_setup "$username" 2>&1) || webhook_setup_failed=true
+        # Pass repository to avoid requiring app JSON to exist
+        (webhook_setup "$username" "$repository" 2>&1) || webhook_setup_failed=true
     fi
     
     # Setup log rotation
