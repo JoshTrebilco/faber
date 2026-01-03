@@ -4,9 +4,6 @@
 # Reverb Management Functions
 #############################################
 
-source "${CIPI_LIB_DIR}/nginx.sh"
-source "${CIPI_LIB_DIR}/php.sh"
-
 # Configure an app as a Reverb client (adds env vars to app's .env)
 configure_app_for_reverb() {
     local username=$1

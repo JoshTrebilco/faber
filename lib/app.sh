@@ -4,11 +4,6 @@
 # App Management Functions
 #############################################
 
-source "${CIPI_LIB_DIR}/nginx.sh"
-source "${CIPI_LIB_DIR}/php.sh"
-source "${CIPI_LIB_DIR}/webhook.sh"
-source "${CIPI_LIB_DIR}/reverb.sh"
-
 # Helper: Convert HTTPS Git URL to SSH format
 convert_https_to_ssh_url() {
     local url=$1
