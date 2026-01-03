@@ -57,6 +57,9 @@ run_step "Pulling latest changes from Git..." git pull origin BRANCH_PLACEHOLDER
 if [ -f "artisan" ]; then
     echo "→ Laravel project detected"
     
+    # Composer install (must be first - artisan commands need vendor/autoload.php)
+    run_step "Installing Composer dependencies..." composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev || true
+    
     # Create .env file if it doesn't exist
     if [ ! -f ".env" ]; then
         if [ -f ".env.example" ]; then
@@ -70,9 +73,6 @@ if [ -f "artisan" ]; then
     if ! grep -q "^APP_KEY=" .env 2>/dev/null || grep -q "^APP_KEY=$" .env 2>/dev/null; then
         run_step "Generating application key..." php artisan key:generate || true
     fi
-    
-    # Composer install
-    run_step "Installing Composer dependencies..." composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev || true
     
     # Run migrations
     run_step "Running database migrations..." php artisan migrate --force || true
