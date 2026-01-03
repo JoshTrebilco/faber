@@ -8,6 +8,98 @@ source "${CIPI_LIB_DIR}/nginx.sh"
 source "${CIPI_LIB_DIR}/php.sh"
 source "${CIPI_LIB_DIR}/webhook.sh"
 
+# Helper: Convert HTTPS Git URL to SSH format
+convert_https_to_ssh_url() {
+    local url=$1
+    
+    # If already SSH format, return as-is
+    if [[ "$url" =~ ^git@ ]] || [[ "$url" =~ ^ssh:// ]]; then
+        echo "$url"
+        return
+    fi
+    
+    # Convert HTTPS to SSH format
+    # https://github.com/user/repo.git -> git@github.com:user/repo.git
+    # https://gitlab.com/user/repo.git -> git@gitlab.com:user/repo.git
+    if [[ "$url" =~ ^https://([^/]+)/(.+)/(.+)(\.git)?$ ]]; then
+        local host="${BASH_REMATCH[1]}"
+        local user="${BASH_REMATCH[2]}"
+        local repo="${BASH_REMATCH[3]}"
+        # Remove .git suffix if present
+        repo="${repo%.git}"
+        echo "git@${host}:${user}/${repo}.git"
+    else
+        # If pattern doesn't match, return original
+        echo "$url"
+    fi
+}
+
+# Helper: Configure Git to use SSH (SSH config + remote URL conversion)
+configure_git_for_ssh() {
+    local username=$1
+    local home_dir=$2
+    local wwwroot="$home_dir/wwwroot"
+    
+    # Configure SSH for Git (accept known hosts automatically for common providers)
+    # This allows automated deployments without manual host key verification
+    cat > "$home_dir/.ssh/config" <<'SSHCONFIG'
+Host github.com
+    StrictHostKeyChecking accept-new
+    LogLevel ERROR
+
+Host gitlab.com
+    StrictHostKeyChecking accept-new
+    LogLevel ERROR
+
+Host bitbucket.org
+    StrictHostKeyChecking accept-new
+    LogLevel ERROR
+SSHCONFIG
+    chown "$username:$username" "$home_dir/.ssh/config"
+    chmod 600 "$home_dir/.ssh/config"
+    
+    # Pre-add known hosts for common Git providers (prevents first-connection prompts)
+    # GitHub
+    if ! sudo -u "$username" ssh-keygen -F github.com >/dev/null 2>&1; then
+        ssh-keyscan -t rsa github.com 2>/dev/null | sudo -u "$username" tee -a "$home_dir/.ssh/known_hosts" >/dev/null 2>&1
+    fi
+    # GitLab
+    if ! sudo -u "$username" ssh-keygen -F gitlab.com >/dev/null 2>&1; then
+        ssh-keyscan -t rsa gitlab.com 2>/dev/null | sudo -u "$username" tee -a "$home_dir/.ssh/known_hosts" >/dev/null 2>&1
+    fi
+    # Bitbucket
+    if ! sudo -u "$username" ssh-keygen -F bitbucket.org >/dev/null 2>&1; then
+        ssh-keyscan -t rsa bitbucket.org 2>/dev/null | sudo -u "$username" tee -a "$home_dir/.ssh/known_hosts" >/dev/null 2>&1
+    fi
+    chown "$username:$username" "$home_dir/.ssh/known_hosts" 2>/dev/null || true
+    chmod 600 "$home_dir/.ssh/known_hosts" 2>/dev/null || true
+    
+    # Get current remote URL and convert HTTPS to SSH if needed
+    local current_url=$(sudo -u "$username" git -C "$wwwroot" config --get remote.origin.url 2>/dev/null)
+    
+    if [ -z "$current_url" ]; then
+        return 0
+    fi
+    
+    # If already SSH format, nothing to do
+    if [[ "$current_url" =~ ^git@ ]] || [[ "$current_url" =~ ^ssh:// ]]; then
+        return 0
+    fi
+    
+    # Convert HTTPS to SSH
+    if [[ "$current_url" =~ ^https:// ]]; then
+        local ssh_url=$(convert_https_to_ssh_url "$current_url")
+        echo "  → Converting Git remote from HTTPS to SSH..."
+        sudo -u "$username" git -C "$wwwroot" remote set-url origin "$ssh_url" 2>/dev/null
+        
+        if [ $? -eq 0 ]; then
+            echo "  → Git remote configured to use SSH"
+        else
+            echo -e "  ${YELLOW}⚠ Warning: Failed to update Git remote URL${NC}"
+        fi
+    fi
+}
+
 # Create app
 app_create() {
     local username=""
@@ -131,6 +223,9 @@ app_create() {
         rm -rf "$home_dir"
         exit 1
     fi
+    
+    # Configure Git to use SSH (SSH config + convert remote URL for webhook deployments)
+    configure_git_for_ssh "$username" "$home_dir"
     
     # Set web-accessible permissions (group-based access for nginx)
     echo "  → Setting web permissions..."
