@@ -30,11 +30,11 @@ git_url_to_ssh() {
     fi
 }
 
-# Helper: Configure Git to use SSH (SSH config + remote URL conversion)
-git_configure_ssh() {
+# Helper: Setup SSH config for git operations (known hosts + config file)
+# This should be called before cloning private repos
+git_setup_ssh_config() {
     local username=$1
     local home_dir=$2
-    local wwwroot="$home_dir/wwwroot"
     
     # Configure SSH for Git (accept known hosts automatically for common providers)
     # This allows automated deployments without manual host key verification
@@ -69,6 +69,17 @@ SSHCONFIG
     fi
     chown "$username:$username" "$home_dir/.ssh/known_hosts" 2>/dev/null || true
     chmod 600 "$home_dir/.ssh/known_hosts" 2>/dev/null || true
+}
+
+# Helper: Configure Git to use SSH (full setup + remote URL conversion)
+# Call this after cloning to convert remote URL from HTTPS to SSH
+git_configure_ssh() {
+    local username=$1
+    local home_dir=$2
+    local wwwroot="$home_dir/wwwroot"
+    
+    # Setup SSH config if not already done
+    git_setup_ssh_config "$username" "$home_dir"
     
     # Get current remote URL and convert HTTPS to SSH if needed
     local current_url=$(sudo -u "$username" git -C "$wwwroot" config --get remote.origin.url 2>/dev/null)

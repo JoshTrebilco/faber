@@ -131,6 +131,10 @@ app_create() {
     chown "$username:$username" "$home_dir/gitkey.pub"
     chmod 644 "$home_dir/gitkey.pub"
     
+    # Setup SSH config and convert URL to SSH format
+    git_setup_ssh_config "$username" "$home_dir"
+    local clone_url=$(git_url_to_ssh "$repository")
+    
     # Check if GitHub private repo - if so, add deploy key before cloning
     echo "  → Checking repository access..."
     local repo_visibility=$(github_is_repo_private "$repository")
@@ -151,7 +155,7 @@ app_create() {
     
     # Clone repository
     echo "  → Cloning repository..."
-    sudo -u "$username" git clone -b "$branch" "$repository" "$home_dir/wwwroot" 2>/dev/null
+    sudo -u "$username" git clone -b "$branch" "$clone_url" "$home_dir/wwwroot" 2>/dev/null
     if [ $? -ne 0 ]; then
         echo -e "${RED}Error: Failed to clone repository${NC}"
         echo -e "${YELLOW}If this is a private repository, ensure the deploy key was added correctly.${NC}"
@@ -159,9 +163,6 @@ app_create() {
         rm -rf "$home_dir"
         exit 1
     fi
-    
-    # Configure Git to use SSH (SSH config + convert remote URL for webhook deployments)
-    git_configure_ssh "$username" "$home_dir"
     
     # Set web-accessible permissions (group-based access for nginx)
     echo "  → Setting web permissions..."
