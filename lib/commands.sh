@@ -42,6 +42,23 @@ cmd_logs() {
     view_antivirus_logs "$lines"
 }
 
+# Config commands
+cmd_config() {
+    local subcmd=$1
+    shift
+    
+    case $subcmd in
+        set)
+            set_config "$@"
+            ;;
+        *)
+            echo -e "${RED}Unknown config command: $subcmd${NC}"
+            echo "Usage: cipi config {set}"
+            exit 1
+            ;;
+    esac
+}
+
 # App commands
 cmd_app() {
     local subcmd=$1

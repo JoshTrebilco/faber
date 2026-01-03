@@ -157,6 +157,9 @@ main() {
         version)
             show_version
             ;;
+        config)
+            cmd_config "$@"
+            ;;
         provision)
             cmd_provision "$@"
             ;;
