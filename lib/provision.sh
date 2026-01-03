@@ -347,8 +347,8 @@ provision_create() {
             sudo -u "$username" "$home_dir/deploy.sh" > "$deploy_log" 2>&1
             local deploy_exit=$?
             
-            # Show filtered progress output
-            grep -E "^(→|─|Deployment)" "$deploy_log" | head -20
+            # Show filtered progress output (arrows, dividers, errors, completion)
+            grep -E "^(→|─|Deployment|  ✗)" "$deploy_log" | head -25
             
             if [ $deploy_exit -eq 0 ]; then
                 echo "  → Deployment completed"
