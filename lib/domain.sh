@@ -127,29 +127,6 @@ domain_create() {
         exit 1
     fi
     
-    # Check for wildcard domain
-    if [[ "$domain" == *"*"* ]]; then
-        echo -e "${YELLOW}${BOLD}Warning: Wildcard domains detected${NC}"
-        echo ""
-        echo "Wildcard domains (*.example.com) require DNS validation."
-        echo "You'll need to:"
-        echo "  1. Create the domain first"
-        echo "  2. Use a DNS provider plugin with certbot"
-        echo "  3. Manually configure DNS TXT records"
-        echo ""
-        echo "Supported DNS providers:"
-        echo "  - Cloudflare (certbot-dns-cloudflare)"
-        echo "  - Route53 (certbot-dns-route53)"
-        echo "  - DigitalOcean (certbot-dns-digitalocean)"
-        echo "  - And more..."
-        echo ""
-        read -p "Continue anyway? (y/N): " confirm
-        if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
-            echo "Cancelled."
-            exit 0
-        fi
-    fi
-    
     # Check if domain already exists
     if domain_exists "$domain"; then
         local owner_app=$(get_domain_field "$domain" "app")
