@@ -401,12 +401,16 @@ provision_create() {
 provision_delete() {
     local username=""
     local dbname=""
+    local force=false
     
     # Parse arguments
     for arg in "$@"; do
         case $arg in
             --dbname=*)
                 dbname="${arg#*=}"
+                ;;
+            --force)
+                force=true
                 ;;
             *)
                 if [ -z "$username" ]; then
@@ -418,15 +422,17 @@ provision_delete() {
     
     if [ -z "$username" ]; then
         echo -e "${RED}Error: Username required${NC}"
-        echo "Usage: cipi provision delete <username> [--dbname=DBNAME]"
+        echo "Usage: cipi provision delete <username> [--dbname=DBNAME] [--force]"
         exit 1
     fi
     
-    # Check if app exists
-    check_app_exists "$username"
+    # Check if app exists (unless force mode)
+    if [ "$force" = false ]; then
+        check_app_exists "$username"
+    fi
     
-    # Check if database exists (if provided)
-    if [ -n "$dbname" ]; then
+    # Check if database exists (if provided and not force mode)
+    if [ -n "$dbname" ] && [ "$force" = false ]; then
         if ! json_has_key "${DATABASES_FILE}" "$dbname"; then
             echo -e "${RED}Error: Database '$dbname' not found${NC}"
             exit 1
@@ -446,8 +452,12 @@ provision_delete() {
     [ -n "$dbname" ] && echo -e "  • Database: ${CYAN}$dbname${NC}"
     echo ""
     
-    # Delete app (has its own confirmation)
-    app_delete "$username"
+    # Delete app (pass --force if enabled)
+    if [ "$force" = true ]; then
+        app_delete "$username" --force
+    else
+        app_delete "$username"
+    fi
     
     # Delete database if specified (has its own confirmation)
     if [ -n "$dbname" ]; then

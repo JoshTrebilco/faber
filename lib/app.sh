@@ -598,41 +598,115 @@ app_password() {
 
 # Delete app
 app_delete() {
-    local username=$1
+    local username=""
+    local force=false
+    
+    # Parse arguments
+    for arg in "$@"; do
+        case $arg in
+            --force)
+                force=true
+                ;;
+            *)
+                if [ -z "$username" ]; then
+                    username="$arg"
+                fi
+                ;;
+        esac
+    done
     
     if [ -z "$username" ]; then
         echo -e "${RED}Error: Username required${NC}"
-        echo "Usage: cipi app delete <username>"
+        echo "Usage: cipi app delete <username> [--force]"
         exit 1
     fi
     
-    check_app_exists "$username"
+    # Check if app exists (unless force mode)
+    if [ "$force" = false ]; then
+        check_app_exists "$username"
+    else
+        # In force mode, check if any resources exist
+        local has_resources=false
+        if id "$username" &>/dev/null 2>&1; then
+            has_resources=true
+        elif [ -d "/home/$username" ]; then
+            has_resources=true
+        elif [ -f "${NGINX_SITES_AVAILABLE}/${username}" ] || [ -f "${NGINX_SITES_ENABLED}/${username}" ]; then
+            has_resources=true
+        fi
+        
+        if [ "$has_resources" = false ]; then
+            echo -e "${YELLOW}No resources found for user '$username'${NC}"
+            exit 0
+        fi
+    fi
     
-    # Confirm deletion
-    echo -e "${YELLOW}${BOLD}Warning: This will permanently delete the virtual host and all its data!${NC}"
-    read -p "Type the username to confirm: " confirm
-    
-    if [ "$confirm" != "$username" ]; then
-        echo "Deletion cancelled."
-        exit 0
+    # Confirm deletion (skip in force mode)
+    if [ "$force" = false ]; then
+        echo -e "${YELLOW}${BOLD}Warning: This will permanently delete the virtual host and all its data!${NC}"
+        read -p "Type the username to confirm: " confirm
+        
+        if [ "$confirm" != "$username" ]; then
+            echo "Deletion cancelled."
+            exit 0
+        fi
+    else
+        echo -e "${YELLOW}${BOLD}Force mode: Cleaning up orphaned resources for '$username'${NC}"
     fi
     
     echo ""
     echo -e "${CYAN}Deleting virtual host...${NC}"
     
+    # Try to get PHP version from app data, or detect from pool configs
     local php_version=$(get_app_field "$username" "php_version")
+    
+    if [ -z "$php_version" ] || [ "$php_version" = "null" ]; then
+        # Try to detect PHP version from pool config
+        local php_versions=($(get_installed_php_versions))
+        for version in "${php_versions[@]}"; do
+            if [ -f "/etc/php/${version}/fpm/pool.d/${username}.conf" ]; then
+                php_version="$version"
+                break
+            fi
+        done
+    fi
     
     # Delete associated domain
     echo "  → Deleting associated domain..."
-    delete_domain_by_app "$username"
+    if [ "$force" = false ]; then
+        delete_domain_by_app "$username"
+    else
+        # In force mode, try to find and delete domain manually
+        local domains=$(json_keys "${DOMAINS_FILE}")
+        for domain in $domains; do
+            local domain_app=$(get_domain_field "$domain" "app")
+            if [ "$domain_app" = "$username" ]; then
+                local has_ssl=$(get_domain_field "$domain" "ssl")
+                has_ssl=${has_ssl:-false}
+                if [ "$has_ssl" = "true" ]; then
+                    cleanup_ssl_certificate "$domain" 2>/dev/null || true
+                fi
+                json_delete "${DOMAINS_FILE}" "$domain" 2>/dev/null || true
+                break
+            fi
+        done
+    fi
     
     # Delete Nginx configuration
     echo "  → Deleting Nginx configuration..."
     delete_nginx_config "$username"
     
-    # Delete PHP-FPM pool
-    echo "  → Deleting PHP-FPM pool..."
-    delete_php_pool "$username" "$php_version"
+    # Delete PHP-FPM pool(s)
+    echo "  → Deleting PHP-FPM pool(s)..."
+    if [ -n "$php_version" ] && [ "$php_version" != "null" ]; then
+        delete_php_pool "$username" "$php_version"
+    else
+        # If PHP version unknown, try all installed versions
+        local php_versions=($(get_installed_php_versions))
+        for version in "${php_versions[@]}"; do
+            delete_php_pool "$username" "$version"
+        done
+    fi
     
     # Delete system user and home directory
     echo "  → Deleting system user and files..."
@@ -644,10 +718,12 @@ app_delete() {
     
     # Delete webhook secret
     echo "  → Deleting webhook secret..."
-    delete_webhook "$username"
+    delete_webhook "$username" 2>/dev/null || true
     
-    # Remove from storage
-    json_delete "${APPS_FILE}" "$username"
+    # Remove from storage (only if exists)
+    if json_has_key "${APPS_FILE}" "$username"; then
+        json_delete "${APPS_FILE}" "$username"
+    fi
     
     # Reload nginx
     echo "  → Reloading Nginx..."
