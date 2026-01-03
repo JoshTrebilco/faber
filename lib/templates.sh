@@ -25,6 +25,9 @@ set -e
 REPO_DIR="$HOME/wwwroot"
 LOG_FILE="$HOME/logs/deploy.log"
 
+# Log output to file while still showing on screen
+exec > >(tee -a "$LOG_FILE") 2>&1
+
 echo "─────────────────────────────────────"
 echo "Deployment started at $(date)"
 echo "─────────────────────────────────────"
