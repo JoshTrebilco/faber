@@ -25,9 +25,7 @@ Cipi has been completely rewritten as a **CLI-only tool** using pure Bash script
 - **JSON-based storage** - Lightweight data storage in `/etc/cipi` (passwords never stored)
 - **Interactive & non-interactive modes** - Flexible command usage
 - **Deployment scripts** - Auto-generated `deploy.sh` for each virtual host
-- **SSL management** - Let's Encrypt SSL with `ssl.sh` script per virtual host
-- **S3 backups** - Auto-generated `backup.sh` for storage + database backups to S3
-- **Webhook support** - Documentation for GitHub/GitLab webhooks
+- **Automatic SSL** - Let's Encrypt SSL certificates automatically configured when domains are created
 - **Log rotation** - Automatic log rotation with 30-day retention
 - **User isolation** - Each virtual host runs under its own system user
 - **SSH key pairs** - Each virtual host has its own SSH key for private Git repos

@@ -234,8 +234,7 @@ EOF
     echo ""
     echo -e "${CYAN}${BOLD}Next Steps:${NC}"
     echo -e "1. Configure GitHub webhook with the above settings"
-    echo -e "2. Configure S3 backup: ${CYAN}nano $home_dir/backup.sh${NC}"
-    echo -e "3. Assign domain: ${CYAN}cipi domain create${NC}"
+    echo -e "2. Assign domain: ${CYAN}cipi domain create${NC}"
     echo ""
 }
 
@@ -466,8 +465,6 @@ app_crontab() {
     echo -e "${YELLOW}Tip: Add this line for Laravel scheduler:${NC}"
     echo -e "  ${CYAN}* * * * * cd /home/$username/wwwroot && php artisan schedule:run >> /dev/null 2>&1${NC}"
     echo ""
-    echo -e "${YELLOW}Tip: Example backup at 2 AM daily:${NC}"
-    echo -e "  ${CYAN}0 2 * * * /home/$username/backup.sh >> /home/$username/logs/backup.log 2>&1${NC}"
     echo ""
     sleep 3
     

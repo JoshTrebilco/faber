@@ -29,7 +29,6 @@ Cipi is a **CLI-based server control panel** designed exclusively for **Laravel 
 - 📊 Monitor server status
 - 🛡️ Built-in fail2ban + ClamAV antivirus protection
 - 🔐 Secure password management (never stored in plain text)
-- 📦 S3 backup integration for storage + databases
 
 **No web interface needed** - everything is managed via SSH with the `cipi` command!
 
@@ -44,7 +43,6 @@ Cipi is **specifically designed for Laravel applications** and developers who:
 - ✅ Prefer **CLI management** over web-based control panels
 - ✅ Value **security hardening** with automatic updates and malware scanning
 - ✅ Need **per-project PHP versions** (Laravel 8 on PHP 8.0, Laravel 11 on PHP 8.3, etc.)
-- ✅ Want **automated backups** to S3 for storage and databases
 - ✅ Are deploying on **Ubuntu 24.04 LTS** servers
 
 ### 🔒 Security Level: Production-Grade & Hardened
@@ -72,7 +70,6 @@ Cipi implements **production-ready security** with multiple layers of protection
 - 📂 **Storage Permissions** - Optimized for Laravel's storage and cache directories
 - ⚙️ **Supervisor Workers** - Process management for queues
 - 📅 **Cron Scheduler** - Pre-configured for `php artisan schedule:run`
-- 💾 **Database Backups** - Automated MySQL/PostgreSQL/SQLite backups to S3
 
 **Monitoring & Response:**
 
@@ -278,13 +275,9 @@ When you create a virtual host, Cipi creates the following structure:
 /home/<username>/
 ├── wwwroot/          # Your Laravel project (Git repository)
 ├── logs/             # Nginx access & error logs
-├── backups/          # Local backup storage
 ├── .ssh/             # SSH keys for Git (private repositories)
 ├── deploy.sh         # Deployment script (editable)
-├── ssl.sh            # SSL certificate management script
-├── backup.sh         # S3 backup script (storage + database)
-├── gitkey.pub        # SSH public key for GitHub/GitLab
-└── WEBHOOK_SETUP.md  # Webhook setup documentation
+└── gitkey.pub        # SSH public key for GitHub/GitLab
 ```
 
 ### Deployment Script
@@ -307,16 +300,14 @@ The script automatically:
 
 ### SSL Certificates
 
-Enable SSL for your domain:
+SSL certificates are **automatically configured** when you create a domain. Cipi uses Let's Encrypt to obtain and configure SSL certificates automatically. Certificates are automatically renewed via cron job.
 
-```bash
-# As root
-sudo -u <username> /home/<username>/ssl.sh
+**Note:** For automatic SSL to work, ensure:
+- DNS is configured to point your domain to the server
+- Port 80 is accessible from the internet
+- SSL email is configured: `cipi config set ssl_email your@email.com`
 
-# Or wait for the automatic hourly cron job
-```
-
-Certificates are automatically renewed via cron job.
+Wildcard domains (*.example.com) require manual DNS validation and are not automatically configured.
 
 ### Private Git Repositories
 
@@ -335,50 +326,6 @@ Copy the public key and add it to your Git provider:
 - **GitHub:** Settings → SSH and GPG keys → New SSH key
 - **GitLab:** Settings → SSH Keys → Add new key
 - **Bitbucket:** Personal settings → SSH keys → Add key
-
-### Backups to S3
-
-Each virtual host includes an S3 backup script for Laravel storage and database:
-
-```bash
-# Edit backup configuration
-nano /home/<username>/backup.sh
-
-# Configure:
-# - S3_BUCKET (your S3 bucket name)
-# - S3_REGION (e.g., us-east-1)
-# - AWS_ACCESS_KEY_ID
-# - AWS_SECRET_ACCESS_KEY
-
-# Test the backup
-sudo -u <username> /home/<username>/backup.sh
-
-# Setup automatic nightly backups
-sudo -u <username> crontab -e
-# Add this line for 2 AM backups:
-# 0 2 * * * /home/<username>/backup.sh >> /home/<username>/logs/backup.log 2>&1
-```
-
-The backup script automatically:
-
-- Backs up Laravel `storage/` directory
-- Backs up database (MySQL, SQLite, or PostgreSQL)
-- Creates compressed archive
-- Uploads to S3 with retention policy
-- Cleans up backups older than 30 days (both local and S3)
-
-**Note:** AWS CLI is pre-installed with Cipi
-
----
-
-## 🔗 Git Webhooks
-
-Cipi supports automatic deployments using Git webhooks. Each virtual host includes a `WEBHOOK_SETUP.md` guide with detailed instructions for:
-
-- GitHub webhook configuration
-- GitLab webhook configuration
-- Webhook endpoint setup
-- Security best practices
 
 ---
 
