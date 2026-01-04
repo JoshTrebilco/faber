@@ -155,6 +155,31 @@ add_ssl_to_nginx() {
     local log_path="/home/$username/logs"
     local php_socket="/var/run/php/php${php_version}-fpm-${username}.sock"
     
+    # Ensure SSL certificate exists before generating config
+    if [ ! -f "/etc/letsencrypt/live/${domain}/fullchain.pem" ]; then
+        echo "  → SSL certificate not found, attempting to obtain..." >&2
+        local ssl_email=$(get_config "ssl_email")
+        
+        if [ -z "$ssl_email" ]; then
+            echo -e "${RED}Error: SSL email not configured${NC}" >&2
+            echo -e "Configure with: ${CYAN}cipi config set ssl_email your@email.com${NC}" >&2
+            return 1
+        fi
+        
+        # Ensure HTTP config exists for certbot validation
+        if [ ! -f "${NGINX_SITES_AVAILABLE}/${username}" ]; then
+            create_nginx_config "$username" "$domain" "$php_version"
+            nginx_reload
+        fi
+        
+        if ! certbot certonly --nginx -d "$domain" --non-interactive --agree-tos --email "$ssl_email" >/dev/null 2>&1; then
+            echo -e "${RED}Error: Failed to obtain SSL certificate for ${domain}${NC}" >&2
+            echo -e "Ensure DNS for ${CYAN}${domain}${NC} points to this server" >&2
+            return 1
+        fi
+        echo "  → SSL certificate obtained" >&2
+    fi
+    
     local ssl_block=$(nginx_ssl_block "$domain")
     local security_headers=$(nginx_security_headers)
     local client_settings=$(nginx_client_settings)
