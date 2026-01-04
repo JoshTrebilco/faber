@@ -313,8 +313,15 @@ reverb_setup() {
     
     # Domain + SSL are already set up by provision_create
     # Regenerate SSL config with websocket proxy included
-    add_websocket_proxy_to_nginx "$username" "$domain" "$php_version" 8080
-    nginx_reload
+    if ! add_websocket_proxy_to_nginx "$username" "$domain" "$php_version" 8080; then
+        echo -e "${RED}Error: Failed to add WebSocket proxy to nginx${NC}"
+        exit 1
+    fi
+    
+    if ! nginx_reload; then
+        echo -e "${RED}Error: Failed to reload nginx${NC}"
+        exit 1
+    fi
     echo "  → WebSocket proxy added to nginx config"
     
     echo ""
