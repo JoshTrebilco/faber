@@ -50,11 +50,24 @@ configure_app_for_reverb() {
 create_reverb_supervisor_config() {
     local username=$1
     local home_dir="/home/$username"
+    local project_dir="${home_dir}/wwwroot"
+    local log_file="${home_dir}/reverb-worker.log"
+    local log_dir="${home_dir}/logs"
+    
+    # Ensure log directory exists with correct ownership
+    mkdir -p "$log_dir"
+    chown "$username:$username" "$log_dir"
+    
+    # Fix log file ownership if it exists
+    if [ -f "$log_file" ]; then
+        chown "$username:$username" "$log_file"
+    fi
     
     cat > "/etc/supervisor/conf.d/reverb-worker.conf" <<EOF
 [program:reverb-worker]
 process_name=%(program_name)s_%(process_num)02d
-command=php ${home_dir}/wwwroot/artisan reverb:start
+command=php artisan reverb:start
+directory=${project_dir}
 autostart=true
 autorestart=true
 stopasgroup=true
@@ -62,8 +75,11 @@ killasgroup=true
 user=${username}
 numprocs=1
 redirect_stderr=true
-stdout_logfile=${home_dir}/reverb-worker.log
+stdout_logfile=${log_file}
+stderr_logfile=${log_dir}/reverb-worker-error.log
 stopwaitsecs=3600
+startsecs=3
+environment=HOME="${home_dir}",PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 EOF
 }
 
@@ -71,6 +87,38 @@ EOF
 supervisor_reload_reverb() {
     supervisorctl reread
     supervisorctl update
+}
+
+# Validate that artisan command is ready to run
+# Returns 0 if valid, 1 if invalid
+validate_reverb_artisan() {
+    local username=$1
+    local home_dir="/home/$username"
+    local project_dir="${home_dir}/wwwroot"
+    local artisan_file="${project_dir}/artisan"
+    local vendor_dir="${project_dir}/vendor"
+    
+    # Check if artisan file exists
+    if [ ! -f "$artisan_file" ]; then
+        echo -e "  ${RED}✗ Artisan file not found: $artisan_file${NC}"
+        return 1
+    fi
+    
+    # Check if vendor directory exists (composer deps installed)
+    if [ ! -d "$vendor_dir" ]; then
+        echo -e "  ${RED}✗ Composer dependencies not installed (vendor/ missing)${NC}"
+        echo -e "  ${YELLOW}  Run: sudo -u $username $home_dir/deploy.sh${NC}"
+        return 1
+    fi
+    
+    # Test that php artisan command works (doesn't crash immediately)
+    if ! sudo -u "$username" php "$artisan_file" --version >/dev/null 2>&1; then
+        echo -e "  ${RED}✗ Artisan command failed to execute${NC}"
+        echo -e "  ${YELLOW}  Check PHP errors or missing dependencies${NC}"
+        return 1
+    fi
+    
+    return 0
 }
 
 # Wait for Reverb worker to reach a state (default: RUNNING)
@@ -81,8 +129,17 @@ wait_for_reverb_worker() {
     local wait_time=0
     
     while [ $wait_time -lt $timeout ]; do
-        if supervisorctl status reverb-worker 2>/dev/null | grep -qE "$target_state"; then
-            return 0
+        local status_output=$(supervisorctl status reverb-worker 2>/dev/null)
+        # Check for target state (RUNNING, STOPPED, etc.) or process name pattern
+        if echo "$status_output" | grep -qE "$target_state|reverb-worker:reverb-worker"; then
+            # If looking for RUNNING, make sure it's actually running
+            if [ "$target_state" = "RUNNING" ]; then
+                if echo "$status_output" | grep -q "RUNNING"; then
+                    return 0
+                fi
+            else
+                return 0
+            fi
         fi
         sleep 1
         ((wait_time++))
@@ -332,6 +389,20 @@ reverb_setup() {
     
     echo ""
     echo -e "${CYAN}Step 6/6: Creating supervisor config...${NC}"
+    
+    # Validate artisan is ready before setting up supervisor
+    echo "  → Validating artisan command..."
+    if ! validate_reverb_artisan "$username"; then
+        echo -e "  ${RED}✗ Validation failed${NC}"
+        echo ""
+        echo -e "  ${YELLOW}Please ensure:${NC}"
+        echo -e "    1. Composer dependencies are installed (run deploy.sh)"
+        echo -e "    2. .env file is properly configured"
+        echo -e "    3. Artisan file exists and is executable"
+        echo ""
+        exit 1
+    fi
+    
     create_reverb_supervisor_config "$username"
     supervisor_reload_reverb
     echo "  → Supervisor config created and loaded"
@@ -341,8 +412,31 @@ reverb_setup() {
     if wait_for_reverb_worker "RUNNING" 10; then
         echo "  → Worker started successfully"
     else
-        echo -e "  ${YELLOW}⚠ Worker may need manual start: cipi reverb start${NC}"
+        echo -e "  ${YELLOW}⚠ Worker failed to start automatically${NC}"
+        echo ""
+        echo -e "  ${CYAN}Diagnostics:${NC}"
         supervisorctl status reverb-worker
+        echo ""
+        
+        # Show recent logs if available
+        local log_file="/home/$username/reverb-worker.log"
+        local error_log="/home/$username/logs/reverb-worker-error.log"
+        if [ -f "$error_log" ] && [ -s "$error_log" ]; then
+            echo -e "  ${CYAN}Recent error log:${NC}"
+            tail -10 "$error_log" | sed 's/^/    /'
+            echo ""
+        elif [ -f "$log_file" ] && [ -s "$log_file" ]; then
+            echo -e "  ${CYAN}Recent log output:${NC}"
+            tail -10 "$log_file" | sed 's/^/    /'
+            echo ""
+        fi
+        
+        echo -e "  ${YELLOW}Troubleshooting:${NC}"
+        echo -e "    • Check logs: tail -f $log_file"
+        echo -e "    • Check errors: tail -f $error_log"
+        echo -e "    • Manual start: cipi reverb start"
+        echo -e "    • Supervisor status: supervisorctl status reverb-worker"
+        echo ""
     fi
     
     # Display summary
