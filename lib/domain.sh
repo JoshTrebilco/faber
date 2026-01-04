@@ -29,11 +29,20 @@ setup_ssl_certificate() {
         return 1
     fi
     
-    # Request SSL certificate
+    # Ensure HTTP-only config exists (should already exist from app creation and update_nginx_domain)
+    # The HTTP config is needed for certbot validation
+    local config_file="${NGINX_SITES_AVAILABLE}/${app}"
+    if [ ! -f "$config_file" ]; then
+        echo -e "  ${YELLOW}⚠ HTTP config not found, creating it...${NC}"
+        create_nginx_config "$app" "$domain" "$php_version"
+        nginx_reload
+    fi
+    
+    # Request SSL certificate (certbot will use existing HTTP config for validation)
     if certbot certonly --nginx -d "$domain" --non-interactive --agree-tos --email "$ssl_email" >/dev/null 2>&1; then
         # Check if certificate was actually obtained
         if [ -d "/etc/letsencrypt/live/$domain" ]; then
-            # Update nginx config with SSL
+            # Create full SSL config (overwrites certbot's auto-config with our standardized config)
             if add_ssl_to_nginx "$app" "$domain" "$php_version"; then
                 # Update domain storage to set ssl: true
                 local updated_data=$(echo "$domain_data" | jq '.ssl = true')

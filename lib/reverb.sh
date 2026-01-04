@@ -160,80 +160,6 @@ EOF
     fi
 }
 
-# Create nginx WebSocket proxy config (serves Laravel app + WebSocket proxy at /app)
-create_reverb_nginx_config() {
-    local username=$1
-    local domain=$2
-    local php_version=$3
-    local root_path="/home/${username}/wwwroot/public"
-    local php_socket="/var/run/php/php${php_version}-fpm-${username}.sock"
-    
-    cat > "${NGINX_SITES_AVAILABLE}/${username}" <<EOF
-server {
-    listen 80;
-    listen [::]:80;
-    server_name ${domain};
-    return 301 https://\$server_name\$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
-    server_name ${domain};
-    root ${root_path};
-    
-    ssl_certificate /etc/letsencrypt/live/${domain}/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/${domain}/privkey.pem;
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
-    
-    add_header X-Frame-Options "SAMEORIGIN";
-    add_header X-Content-Type-Options "nosniff";
-    
-    index index.php;
-    charset utf-8;
-    
-    access_log /home/${username}/logs/access.log;
-    error_log /home/${username}/logs/error.log;
-    
-    location / {
-        try_files \$uri \$uri/ /index.php?\$query_string;
-    }
-    
-    location = /favicon.ico { access_log off; log_not_found off; }
-    location = /robots.txt  { access_log off; log_not_found off; }
-    
-    error_page 404 /index.php;
-    
-    location ~ \.php\$ {
-        fastcgi_pass unix:${php_socket};
-        fastcgi_param SCRIPT_FILENAME \$realpath_root\$fastcgi_script_name;
-        include fastcgi_params;
-        fastcgi_hide_header X-Powered-By;
-    }
-    
-    location ~ /\.(?!well-known).* {
-        deny all;
-    }
-    
-    # Reverb WebSocket proxy at /app
-    location /app {
-        proxy_http_version 1.1;
-        proxy_set_header Host \$http_host;
-        proxy_set_header Scheme \$scheme;
-        proxy_set_header SERVER_PORT \$server_port;
-        proxy_set_header REMOTE_ADDR \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "Upgrade";
-        proxy_pass http://0.0.0.0:8080;
-    }
-}
-EOF
-    
-    # Enable site
-    ln -sf "${NGINX_SITES_AVAILABLE}/${username}" "${NGINX_SITES_ENABLED}/${username}"
-}
 
 # Main setup function
 reverb_setup() {
@@ -321,6 +247,7 @@ reverb_setup() {
     echo -e "${CYAN}Step 1/6: Provisioning Reverb app...${NC}"
     
     # Provision the app (skip database and reverb client config)
+    # Domain + SSL will be set up automatically by provision_create
     provision_create \
         --user="$username" \
         --repository="$repository" \
@@ -382,10 +309,13 @@ reverb_setup() {
     set_reverb_file_limits "$username"
     
     echo ""
-    echo -e "${CYAN}Step 5/6: Configuring nginx...${NC}"
-    create_reverb_nginx_config "$username" "$domain" "$php_version"
+    echo -e "${CYAN}Step 5/6: Adding WebSocket proxy to nginx...${NC}"
+    
+    # Domain + SSL are already set up by provision_create
+    # Regenerate SSL config with websocket proxy included
+    add_websocket_proxy_to_nginx "$username" "$domain" "$php_version" 8080
     nginx_reload
-    echo "  → Nginx configured (app + WebSocket proxy)"
+    echo "  → WebSocket proxy added to nginx config"
     
     echo ""
     echo -e "${CYAN}Step 6/6: Creating supervisor config...${NC}"
