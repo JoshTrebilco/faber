@@ -865,14 +865,14 @@ show_help_subcommand() {
 show_help_interactive() {
     local commands=(
         "status:Show server status"
-        "provision:Quick setup: app + domain + database + SSL"
+        "provision:Quick setup wizard"
         "app:Manage applications"
         "domain:Manage domains"
         "database:Manage databases"
         "php:Manage PHP versions"
         "service:Control services"
         "webhook:Webhook configuration"
-        "reverb:WebSocket server management"
+        "reverb:WebSocket server"
         "logs:View antivirus logs"
         "update:Update Cipi"
     )
@@ -880,6 +880,7 @@ show_help_interactive() {
     local selected=0
     local total=${#commands[@]}
     local key
+    local box_width=50
     
     # Hide cursor
     echo -ne "\033[?25l"
@@ -894,23 +895,23 @@ show_help_interactive() {
         echo "██      ██ ██      ██"
         echo " ██████ ██ ██      ██"
         echo -e "${NC}"
-        echo -e "${BOLD}┌─ Cipi Help ─────────────────────────────────┐${NC}"
-        echo -e "${BOLD}│${NC}                                             ${BOLD}│${NC}"
+        echo -e "${BOLD}┌─ Cipi Help ────────────────────────────────────┐${NC}"
+        echo -e "${BOLD}│${NC}                                                ${BOLD}│${NC}"
         
         for ((i=0; i<total; i++)); do
             local cmd_name=$(echo "${commands[$i]}" | cut -d: -f1)
             local cmd_desc=$(echo "${commands[$i]}" | cut -d: -f2)
             
             if [ $i -eq $selected ]; then
-                echo -e "${BOLD}│${NC}  ${GREEN}${BOLD}>${NC} ${CYAN}${BOLD}$(printf "%-12s" "$cmd_name")${NC} $cmd_desc     ${BOLD}│${NC}"
+                printf "${BOLD}│${NC}  ${GREEN}${BOLD}>${NC} ${CYAN}${BOLD}%-12s${NC} %-30s ${BOLD}│${NC}\n" "$cmd_name" "$cmd_desc"
             else
-                echo -e "${BOLD}│${NC}    $(printf "%-12s" "$cmd_name") $cmd_desc     ${BOLD}│${NC}"
+                printf "${BOLD}│${NC}    %-12s %-30s ${BOLD}│${NC}\n" "$cmd_name" "$cmd_desc"
             fi
         done
         
-        echo -e "${BOLD}│${NC}                                             ${BOLD}│${NC}"
-        echo -e "${BOLD}│${NC}  ↑/↓ Navigate  Enter Select  q Quit         ${BOLD}│${NC}"
-        echo -e "${BOLD}└─────────────────────────────────────────────┘${NC}"
+        echo -e "${BOLD}│${NC}                                                ${BOLD}│${NC}"
+        echo -e "${BOLD}│${NC}  ↑/↓ Navigate  Enter Select  q Quit            ${BOLD}│${NC}"
+        echo -e "${BOLD}└────────────────────────────────────────────────┘${NC}"
         
         # Read key
         read -rsn1 key
