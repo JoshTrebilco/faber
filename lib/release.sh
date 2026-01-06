@@ -75,21 +75,16 @@ cleanup_failed_release() {
 # Core Deployment Functions
 #############################################
 
-# Load deployment configuration from app metadata
-load_deploy_config() {
-    local config_file="$RELEASE_HOME/.deploy-config"
-    
-    if [ ! -f "$config_file" ]; then
-        echo "✗ Error: Deployment config not found at $config_file"
-        echo "  This file is created by 'cipi app create'"
+# Validate deployment configuration
+# REPOSITORY and BRANCH should be defined in the user's deploy.sh
+validate_deploy_config() {
+    if [ -z "$REPOSITORY" ]; then
+        echo "✗ Error: REPOSITORY is not set in deploy.sh"
         return 1
     fi
     
-    # Source the config file (contains REPOSITORY and BRANCH)
-    source "$config_file"
-    
-    if [ -z "$REPOSITORY" ] || [ -z "$BRANCH" ]; then
-        echo "✗ Error: REPOSITORY and BRANCH must be set in $config_file"
+    if [ -z "$BRANCH" ]; then
+        echo "✗ Error: BRANCH is not set in deploy.sh"
         return 1
     fi
     
@@ -200,8 +195,8 @@ run_deployment() {
     # Set umask for secure permissions
     umask 027
     
-    # Load configuration
-    if ! load_deploy_config; then
+    # Validate configuration (REPOSITORY and BRANCH should be set in deploy.sh)
+    if ! validate_deploy_config; then
         DEPLOY_FAILED=1
         exit 1
     fi
