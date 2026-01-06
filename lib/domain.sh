@@ -65,8 +65,10 @@ setup_ssl_certificate() {
     else
         echo -e "  ${YELLOW}⚠ SSL certificate setup failed${NC}"
         # Show relevant error from certbot output
-        if echo "$certbot_output" | grep -q "too many certificates"; then
-            echo -e "  ${YELLOW}Rate limit: Too many certificates issued recently${NC}"
+        if echo "$certbot_output" | grep -qi "too many\|rate limit"; then
+            # Extract the rate limit error line which includes retry time
+            local rate_limit_line=$(echo "$certbot_output" | grep -i "too many\|rate limit" | head -1)
+            echo -e "  ${YELLOW}Rate limit: $rate_limit_line${NC}"
         elif echo "$certbot_output" | grep -q "DNS problem"; then
             echo -e "  ${YELLOW}DNS not pointing to this server${NC}"
         elif echo "$certbot_output" | grep -q "connection refused\|Connection refused"; then
