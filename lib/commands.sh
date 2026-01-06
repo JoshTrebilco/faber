@@ -430,6 +430,48 @@ cmd_reverb() {
     esac
 }
 
+# Deploy command
+cmd_deploy() {
+    if check_help_requested "$@"; then
+        show_help_command "deploy"
+        exit 0
+    fi
+    
+    local username=$1
+    
+    if [ -z "$username" ]; then
+        echo -e "${RED}Error: Username required${NC}"
+        echo "Usage: cipi deploy <username>"
+        exit 1
+    fi
+    
+    check_app_exists "$username"
+    
+    local home_dir="/home/$username"
+    local deploy_script="$home_dir/deploy.sh"
+    
+    if [ ! -f "$deploy_script" ]; then
+        echo -e "${RED}Error: Deploy script not found: $deploy_script${NC}"
+        exit 1
+    fi
+    
+    echo -e "${CYAN}Triggering deployment for: $username${NC}"
+    echo ""
+    
+    # Run deployment script
+    sudo -u "$username" bash -c "cd $home_dir && ./deploy.sh"
+    local exit_code=$?
+    
+    if [ $exit_code -eq 0 ]; then
+        echo ""
+        echo -e "${GREEN}Deployment completed successfully${NC}"
+    else
+        echo ""
+        echo -e "${RED}Deployment failed (exit code: $exit_code)${NC}"
+        exit $exit_code
+    fi
+}
+
 # Update command
 cmd_update() {
     if check_help_requested "$@"; then

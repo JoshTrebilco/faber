@@ -157,7 +157,7 @@ cipi webhook show myapp
 # Note: Webhook domain and SSL email are set during installation
 
 # 5. Deploy updates manually (or let webhook handle it)
-sudo -u myapp /home/myapp/deploy.sh
+cipi deploy myapp
 ```
 
 ### Basic Commands

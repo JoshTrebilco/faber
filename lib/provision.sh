@@ -352,7 +352,7 @@ provision_create() {
             else
                 echo -e "  → ${YELLOW}Deployment had issues (exit code: $deploy_exit)${NC}"
                 echo -e "  ${YELLOW}Full log: cat $deploy_log${NC}"
-                echo -e "  ${YELLOW}Re-run:   sudo -u $username $home_dir/deploy.sh${NC}"
+                echo -e "  ${YELLOW}Re-run:   cipi deploy $username${NC}"
             fi
             
             # Fix log ownership
@@ -402,7 +402,7 @@ provision_create() {
     echo -e "${BOLD}Next Steps${NC}"
     echo -e "• Edit .env: ${CYAN}cipi app env $username${NC}"
     echo -e "• View app: ${CYAN}cipi app show $username${NC}"
-    echo -e "• Deploy: ${CYAN}sudo -u $username $home_dir/deploy.sh${NC}"
+    echo -e "• Deploy: ${CYAN}cipi deploy $username${NC}"
     echo ""
 }
 

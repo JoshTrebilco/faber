@@ -114,7 +114,7 @@ validate_reverb_artisan() {
     # Check if vendor directory exists (composer deps installed)
     if [ ! -d "$vendor_dir" ]; then
         echo -e "  ${RED}✗ Composer dependencies not installed (vendor/ missing)${NC}"
-        echo -e "  ${YELLOW}  Run: sudo -u $username $home_dir/deploy.sh${NC}"
+        echo -e "  ${YELLOW}  Run: cipi deploy $username${NC}"
         return 1
     fi
     

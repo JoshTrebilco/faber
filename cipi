@@ -173,6 +173,9 @@ main() {
         update)
             cmd_update "$@"
             ;;
+        deploy)
+            cmd_deploy "$@"
+            ;;
         *)
             echo -e "${RED}Unknown command: $COMMAND${NC}"
             echo ""

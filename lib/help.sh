@@ -48,7 +48,7 @@ levenshtein_distance() {
 # Suggest closest command match
 suggest_command() {
     local input="$1"
-    local commands=("status" "provision" "app" "domain" "database" "php" "service" "webhook" "reverb" "update" "help" "logs" "version")
+    local commands=("status" "provision" "app" "domain" "database" "php" "service" "webhook" "reverb" "deploy" "update" "help" "logs" "version")
     local best_match=""
     local min_distance=999
     local distance
@@ -109,6 +109,7 @@ declare -A HELP_SYNOPSIS=(
     ["reverb:restart"]="cipi reverb restart"
     ["reverb:delete"]="cipi reverb delete"
     ["logs"]="cipi logs [--lines=N]"
+    ["deploy"]="cipi deploy <user>"
     ["update"]="cipi update [--force]"
 )
 
@@ -148,6 +149,7 @@ declare -A HELP_DESCRIPTION=(
     ["webhook:show"]="Show webhook configuration for an application"
     ["webhook:regenerate"]="Regenerate webhook secret for an application"
     ["webhook:logs"]="View webhook logs"
+    ["deploy"]="Trigger a deployment for an application"
     ["reverb"]="Manage Reverb WebSocket server"
     ["reverb:setup"]="Set up dedicated Reverb WebSocket server"
     ["reverb:show"]="Show Reverb server configuration"
@@ -175,6 +177,7 @@ show_help_compact() {
     echo -e "  ${CYAN}service${NC}     Control services"
     echo -e "  ${CYAN}webhook${NC}     Webhook configuration"
     echo -e "  ${CYAN}reverb${NC}      WebSocket server management"
+    echo -e "  ${CYAN}deploy${NC}      Trigger deployment for an app"
     echo -e "  ${CYAN}logs${NC}        View antivirus logs"
     echo -e "  ${CYAN}update${NC}      Update Cipi"
     echo ""
@@ -241,6 +244,9 @@ show_help_full() {
     echo -e "  ${CYAN}reverb stop${NC}                     Stop Reverb server"
     echo -e "  ${CYAN}reverb restart${NC}                  Restart Reverb server"
     echo -e "  ${CYAN}reverb delete${NC}                   Delete Reverb server"
+    echo ""
+    echo -e "${BOLD}Deployment:${NC}"
+    echo -e "  ${CYAN}deploy <user>${NC}                   Trigger deployment for an app"
     echo ""
     echo -e "${BOLD}System Management:${NC}"
     echo -e "  ${CYAN}logs [--lines=N]${NC}                View ClamAV antivirus scan logs"
@@ -406,6 +412,27 @@ show_help_command() {
             echo -e "  ${CYAN}delete${NC}     Delete Reverb server"
             echo ""
             echo -e "Run ${CYAN}cipi reverb <command> --help${NC} for command options"
+            echo ""
+            ;;
+        deploy)
+            echo -e "${BOLD}DEPLOY${NC} - Trigger deployment for an application"
+            echo ""
+            echo -e "${BOLD}USAGE:${NC}"
+            echo -e "  ${CYAN}cipi deploy <username>${NC}"
+            echo ""
+            echo -e "${BOLD}ARGUMENTS:${NC}"
+            echo -e "  ${CYAN}<username>${NC}    The application username to deploy"
+            echo ""
+            echo -e "${BOLD}DESCRIPTION:${NC}"
+            echo -e "  Triggers a zero-downtime deployment for the specified application."
+            echo -e "  This runs the same deployment process as the webhook trigger:"
+            echo -e "    • Clones fresh code into a new release directory"
+            echo -e "    • Runs deployment hooks (composer install, npm build, migrations)"
+            echo -e "    • Atomically switches the 'current' symlink"
+            echo -e "    • Cleans up old releases"
+            echo ""
+            echo -e "${BOLD}EXAMPLES:${NC}"
+            echo -e "  cipi deploy myapp"
             echo ""
             ;;
         logs)

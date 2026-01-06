@@ -16,7 +16,7 @@ _cipi() {
     COMPREPLY=()
     
     if [ $COMP_CWORD -eq 1 ]; then
-        COMPREPLY=($(compgen -W "status version provision app domain database php service webhook reverb logs update help completion" -- "$cur"))
+        COMPREPLY=($(compgen -W "status version provision app domain database php service webhook reverb deploy logs update help completion" -- "$cur"))
     elif [ $COMP_CWORD -eq 2 ]; then
         case "$prev" in
             provision)
@@ -45,6 +45,11 @@ _cipi() {
                 ;;
             completion)
                 COMPREPLY=($(compgen -W "bash" -- "$cur"))
+                ;;
+            deploy)
+                if [ -f /etc/cipi/apps.json ]; then
+                    COMPREPLY=($(compgen -W "$(jq -r 'keys[]' /etc/cipi/apps.json 2>/dev/null)" -- "$cur"))
+                fi
                 ;;
         esac
     elif [ $COMP_CWORD -eq 3 ]; then
