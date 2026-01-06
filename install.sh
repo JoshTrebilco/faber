@@ -686,7 +686,8 @@ install_cipi() {
     # Set secure permissions (only root can read and execute)
     chmod 700 /usr/local/bin/cipi
     chmod 700 /opt/cipi/lib/*.sh
-    chmod 700 /opt/cipi
+    chmod 755 /opt/cipi/lib/release.sh  # Must be readable by app users for deploy.sh
+    chmod 711 /opt/cipi /opt/cipi/lib   # Traversable but not listable
     chown -R root:root /usr/local/bin/cipi /opt/cipi
     
     # Initialize storage

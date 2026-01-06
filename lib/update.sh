@@ -142,6 +142,8 @@ update_cipi() {
         mkdir -p "${CIPI_LIB_DIR}"
         cp -r "${tmp_dir}/${extract_dir}/lib"/* "${CIPI_LIB_DIR}/"
         chmod 700 "${CIPI_LIB_DIR}"/*.sh
+        chmod 755 "${CIPI_LIB_DIR}/release.sh"  # Must be readable by app users for deploy.sh
+        chmod 711 /opt/cipi "${CIPI_LIB_DIR}"   # Traversable but not listable
         chown -R root:root "${CIPI_LIB_DIR}"
     fi
     
