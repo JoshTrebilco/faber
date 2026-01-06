@@ -109,7 +109,7 @@ declare -A HELP_SYNOPSIS=(
     ["reverb:restart"]="cipi reverb restart"
     ["reverb:delete"]="cipi reverb delete"
     ["logs"]="cipi logs [--lines=N]"
-    ["update"]="cipi update"
+    ["update"]="cipi update [--force]"
 )
 
 declare -A HELP_DESCRIPTION=(
@@ -426,7 +426,11 @@ show_help_command() {
             echo -e "${BOLD}UPDATE${NC} - Update Cipi"
             echo ""
             echo -e "${BOLD}USAGE:${NC}"
-            echo -e "  ${CYAN}cipi update${NC}"
+            echo -e "  ${CYAN}cipi update [--force]${NC}"
+            echo ""
+            echo -e "${BOLD}OPTIONS:${NC}"
+            echo -e "  ${CYAN}--force, -f${NC}    Force reinstall even if already up to date"
+            echo -e "                 Useful for reinstalling the current version"
             echo ""
             echo -e "${BOLD}DESCRIPTION:${NC}"
             echo -e "  Updates Cipi to the latest version from the repository."

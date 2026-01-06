@@ -44,6 +44,17 @@ count_commits_behind() {
 
 # Update Cipi
 update_cipi() {
+    local force=false
+    
+    # Parse arguments
+    for arg in "$@"; do
+        case $arg in
+            --force|-f)
+                force=true
+                ;;
+        esac
+    done
+    
     echo -e "${BOLD}Cipi Update${NC}"
     echo "─────────────────────────────────────"
     echo ""
@@ -72,24 +83,29 @@ update_cipi() {
     echo -e "Latest commit:  ${GREEN}${latest_commit:0:7}${NC}"
     echo ""
     
-    # Check if update is needed
-    if [ -n "$current_commit" ] && [ "$current_commit" != "null" ] && [ "$current_commit" = "$latest_commit" ]; then
+    # Check if update is needed (skip if --force)
+    if [ "$force" = false ] && [ -n "$current_commit" ] && [ "$current_commit" != "null" ] && [ "$current_commit" = "$latest_commit" ]; then
         echo -e "${GREEN}Cipi is already up to date!${NC}"
+        echo -e "${YELLOW}Tip:${NC} Use ${CYAN}--force${NC} to reinstall the current version"
         exit 0
     fi
     
-    local commits_behind=$(count_commits_behind "$current_commit" "$latest_commit")
-    if [ "$commits_behind" != "unknown" ] && [ "$commits_behind" != "0" ]; then
-        echo -e "${YELLOW}A new version is available! (${commits_behind} commit(s) behind)${NC}"
+    if [ "$force" = true ]; then
+        echo -e "${YELLOW}Force reinstalling...${NC}"
     else
-        echo -e "${YELLOW}A new version is available!${NC}"
-    fi
-    
-    read -p "Do you want to update? (y/N): " confirm
-    
-    if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
-        echo "Update cancelled."
-        exit 0
+        local commits_behind=$(count_commits_behind "$current_commit" "$latest_commit")
+        if [ "$commits_behind" != "unknown" ] && [ "$commits_behind" != "0" ]; then
+            echo -e "${YELLOW}A new version is available! (${commits_behind} commit(s) behind)${NC}"
+        else
+            echo -e "${YELLOW}A new version is available!${NC}"
+        fi
+        
+        read -p "Do you want to update? (y/N): " confirm
+        
+        if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
+            echo "Update cancelled."
+            exit 0
+        fi
     fi
     
     echo ""
@@ -172,8 +188,13 @@ update_cipi() {
     rm -rf "$tmp_dir"
     
     echo ""
-    echo -e "${GREEN}${BOLD}Cipi updated successfully!${NC}"
-    echo -e "New commit: ${CYAN}${latest_commit:0:7}${NC}"
+    if [ "$force" = true ] && [ "$current_commit" = "$latest_commit" ]; then
+        echo -e "${GREEN}${BOLD}Cipi reinstalled successfully!${NC}"
+        echo -e "Commit: ${CYAN}${latest_commit:0:7}${NC}"
+    else
+        echo -e "${GREEN}${BOLD}Cipi updated successfully!${NC}"
+        echo -e "New commit: ${CYAN}${latest_commit:0:7}${NC}"
+    fi
     echo ""
     if [ -f "${CIPI_BIN}.backup" ]; then
         echo "Backup saved at: ${CIPI_BIN}.backup"
