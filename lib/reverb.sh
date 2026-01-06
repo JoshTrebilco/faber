@@ -35,13 +35,13 @@ configure_app_for_reverb() {
         fi
     }
     
-    set_env_var "$env_file" "BROADCAST_CONNECTION" "\"reverb\""
-    set_env_var "$env_file" "REVERB_APP_ID" "\"$reverb_app_id\""
-    set_env_var "$env_file" "REVERB_APP_KEY" "\"$reverb_app_key\""
-    set_env_var "$env_file" "REVERB_APP_SECRET" "\"$reverb_app_secret\""
+    set_env_var "$env_file" "BROADCAST_CONNECTION" "reverb"
+    set_env_var "$env_file" "REVERB_APP_ID" "$reverb_app_id"
+    set_env_var "$env_file" "REVERB_APP_KEY" "$reverb_app_key"
+    set_env_var "$env_file" "REVERB_APP_SECRET" "$reverb_app_secret"
     set_env_var "$env_file" "REVERB_HOST" "\"$reverb_domain\""
-    set_env_var "$env_file" "REVERB_PORT" "\"443\""
-    set_env_var "$env_file" "REVERB_SCHEME" "\"https\""
+    set_env_var "$env_file" "REVERB_PORT" "443"
+    set_env_var "$env_file" "REVERB_SCHEME" "https"
     
     # Vite environment variables for frontend
     set_env_var "$env_file" "VITE_REVERB_APP_KEY" "\"\${REVERB_APP_KEY}\""
@@ -273,14 +273,14 @@ reverb_setup() {
     }
     
     # Configure Reverb server env vars
-    set_env_var "$env_file" "REVERB_SERVER_HOST" "\"0.0.0.0\""
-    set_env_var "$env_file" "REVERB_SERVER_PORT" "\"8080\""
+    set_env_var "$env_file" "REVERB_SERVER_HOST" "0.0.0.0"
+    set_env_var "$env_file" "REVERB_SERVER_PORT" "8080"
     set_env_var "$env_file" "REVERB_HOST" "\"$domain\""
-    set_env_var "$env_file" "REVERB_PORT" "\"443\""
-    set_env_var "$env_file" "REVERB_SCHEME" "\"https\""
-    set_env_var "$env_file" "REVERB_APP_ID" "\"$app_id\""
-    set_env_var "$env_file" "REVERB_APP_KEY" "\"$app_key\""
-    set_env_var "$env_file" "REVERB_APP_SECRET" "\"$app_secret\""
+    set_env_var "$env_file" "REVERB_PORT" "443"
+    set_env_var "$env_file" "REVERB_SCHEME" "https"
+    set_env_var "$env_file" "REVERB_APP_ID" "$app_id"
+    set_env_var "$env_file" "REVERB_APP_KEY" "$app_key"
+    set_env_var "$env_file" "REVERB_APP_SECRET" "$app_secret"
     
     # Vite environment variables for frontend
     set_env_var "$env_file" "VITE_REVERB_APP_KEY" "\"\${REVERB_APP_KEY}\""
