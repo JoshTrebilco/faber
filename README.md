@@ -418,16 +418,32 @@ cipi config set ssl_email your@email.com
 
 ## 🏗️ App Structure
 
-When you create a virtual host, Cipi creates the following structure:
+Cipi uses **zero-downtime deployments** with an Envoyer-style release structure:
 
 ```
 /home/<username>/
-├── wwwroot/          # Your Laravel project (Git repository)
-├── logs/             # Nginx access & error logs (rotated daily)
-├── .ssh/             # SSH keys for Git (private repositories)
-├── deploy.sh         # Deployment script (editable)
-└── gitkey.pub        # SSH public key for GitHub/GitLab
+├── current -> releases/20260106123456/   # Symlink to active release
+├── releases/                              # Timestamped release directories
+│   ├── 20260106123456/                   # Each deployment creates a new release
+│   └── 20260106100000/
+├── storage/                               # Shared persistent storage
+│   ├── app/
+│   ├── framework/
+│   └── logs/
+├── .env                                   # Shared environment file
+├── logs/                                  # Nginx access & error logs
+├── .ssh/                                  # SSH keys for Git
+├── deploy.sh                              # Deployment hooks (editable)
+└── gitkey.pub                             # SSH public key for GitHub/GitLab
 ```
+
+**How Zero-Downtime Works:**
+
+1. Each deployment clones fresh code into a new timestamped `releases/` directory
+2. Shared resources (`storage/` and `.env`) are symlinked into the release
+3. Build steps run (composer, npm, migrations)
+4. The `current` symlink is atomically switched to the new release
+5. Old releases are cleaned up (keeps last 5)
 
 **Additional System Files:**
 
@@ -436,23 +452,55 @@ When you create a virtual host, Cipi creates the following structure:
 - **Nginx Config:** `/etc/nginx/sites-available/<username>` - Nginx virtual host configuration
 - **Webhook Secret:** Stored securely in `/etc/cipi/webhooks.json` (not in user directory)
 
-### Deployment Script
+### Deployment Hooks
 
-Each virtual host comes with a pre-configured `deploy.sh` script optimized for Laravel:
+Each app has a customizable `deploy.sh` with Envoyer-style hooks:
 
 ```bash
 cd /home/<username>
 ./deploy.sh
 ```
 
-The script automatically:
+**Hook Phases:**
 
-- Pulls latest changes from Git
-- Installs Composer dependencies
-- Runs database migrations
-- Clears and optimizes cache
-- Builds assets with npm (if needed)
-- Restarts queue workers
+| Hook          | When                      | Typical Use                        |
+| ------------- | ------------------------- | ---------------------------------- |
+| `started()`   | After clone               | Environment checks, custom setup   |
+| `linked()`    | After storage/.env linked | Composer, npm, migrations, caching |
+| `activated()` | After symlink switch      | Queue restart, notifications       |
+| `finished()`  | End of deployment         | Monitoring pings, cleanup          |
+
+**Default `linked()` hook:**
+
+```bash
+linked() {
+    composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
+
+    if [ -f "package.json" ]; then
+        npm ci && npm run build
+    fi
+
+    php artisan migrate --force
+    php artisan config:cache
+    php artisan route:cache
+    php artisan view:cache
+}
+```
+
+### Rollback
+
+Instantly rollback to a previous release:
+
+```bash
+# List available releases
+cipi app releases <username>
+
+# Rollback to previous release
+cipi app rollback <username>
+
+# Rollback to specific release
+cipi app rollback <username> 20260105120000
+```
 
 ### SSL Certificates
 
