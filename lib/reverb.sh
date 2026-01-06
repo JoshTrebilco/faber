@@ -44,10 +44,10 @@ configure_app_for_reverb() {
     set_env_var "$env_file" "REVERB_SCHEME" "https"
     
     # Vite environment variables for frontend
-    set_env_var "$env_file" "VITE_REVERB_APP_KEY" "\"\${REVERB_APP_KEY}\""
-    set_env_var "$env_file" "VITE_REVERB_HOST" "\"\${REVERB_HOST}\""
-    set_env_var "$env_file" "VITE_REVERB_PORT" "\"\${REVERB_PORT}\""
-    set_env_var "$env_file" "VITE_REVERB_SCHEME" "\"\${REVERB_SCHEME}\""
+    set_env_var "$env_file" "VITE_REVERB_APP_KEY" "$reverb_app_key"
+    set_env_var "$env_file" "VITE_REVERB_HOST" "\"$reverb_domain\""
+    set_env_var "$env_file" "VITE_REVERB_PORT" "443"
+    set_env_var "$env_file" "VITE_REVERB_SCHEME" "https"
     
     chown "$username:$username" "$env_file"
 }
@@ -283,10 +283,10 @@ reverb_setup() {
     set_env_var "$env_file" "REVERB_APP_SECRET" "$app_secret"
     
     # Vite environment variables for frontend
-    set_env_var "$env_file" "VITE_REVERB_APP_KEY" "\"\${REVERB_APP_KEY}\""
-    set_env_var "$env_file" "VITE_REVERB_HOST" "\"\${REVERB_HOST}\""
-    set_env_var "$env_file" "VITE_REVERB_PORT" "\"\${REVERB_PORT}\""
-    set_env_var "$env_file" "VITE_REVERB_SCHEME" "\"\${REVERB_SCHEME}\""
+    set_env_var "$env_file" "VITE_REVERB_APP_KEY" "$app_key"
+    set_env_var "$env_file" "VITE_REVERB_HOST" "\"$domain\""
+    set_env_var "$env_file" "VITE_REVERB_PORT" "443"
+    set_env_var "$env_file" "VITE_REVERB_SCHEME" "https"
     
     chown "$username:$username" "$env_file"
     echo "  → Reverb server .env configured"
