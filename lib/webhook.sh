@@ -109,7 +109,7 @@ webhook_delete() {
     local webhook_url="https://$webhook_domain/webhook/$username"
     
     # Extract owner/repo from repository URL
-    local owner_repo=$(extract_github_owner_repo "$repository")
+    local owner_repo=$(github_parse_repo "$repository")
     
     if [ -z "$owner_repo" ]; then
         echo -e "${RED}Error: Could not extract owner/repo from: $repository${NC}"
