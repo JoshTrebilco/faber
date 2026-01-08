@@ -16,9 +16,19 @@ REVERB_FILE="${STORAGE_DIR}/reverb.json"
 # Initialize storage
 init_storage() {
     mkdir -p "${STORAGE_DIR}"
-    chmod 700 "${STORAGE_DIR}"
+    # Allow www-data to traverse for webhook handler
+    chmod 751 "${STORAGE_DIR}" 
     
-    for file in "${APPS_FILE}" "${DOMAINS_FILE}" "${DATABASES_FILE}" "${CONFIG_FILE}" "${WEBHOOKS_FILE}" "${VERSION_FILE}"; do
+    for file in "${APPS_FILE}" "${DOMAINS_FILE}" "${WEBHOOKS_FILE}" "${VERSION_FILE}"; do
+        if [ ! -f "$file" ]; then
+            echo "{}" > "$file"
+            # Readable by www-data for webhook handler
+            chmod 644 "$file"
+        fi
+    done
+    
+    # Sensitive files - keep restricted (passwords, secrets)
+    for file in "${DATABASES_FILE}" "${CONFIG_FILE}"; do
         if [ ! -f "$file" ]; then
             echo "{}" > "$file"
             chmod 600 "$file"
