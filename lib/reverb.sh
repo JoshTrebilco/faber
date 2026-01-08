@@ -225,9 +225,10 @@ reverb_setup() {
     fi
     
     echo ""
-    echo -e "${CYAN}Step 1/6: Provisioning Reverb app...${NC}"
+    echo -e "${CYAN}Step 1/7: Provisioning Reverb app...${NC}"
     
-    # Provision the app (skip database and reverb client config)
+    # Provision the app (skip database, reverb client config, and deploy)
+    # Deploy is deferred until after .env is configured with VITE_* vars
     # Domain + SSL will be set up automatically by provision_create
     provision_create \
         --user="$username" \
@@ -236,12 +237,13 @@ reverb_setup() {
         --branch="$branch" \
         --php="$php_version" \
         --skip-db \
-        --skip-reverb
+        --skip-reverb \
+        --skip-deploy
     
     local home_dir="/home/$username"
     
     echo ""
-    echo -e "${CYAN}Step 2/6: Generating Reverb credentials...${NC}"
+    echo -e "${CYAN}Step 2/7: Generating Reverb credentials...${NC}"
     
     # Generate credentials
     local app_id=$(shuf -i 100000-999999 -n 1)
@@ -253,7 +255,7 @@ reverb_setup() {
     echo "  → Credentials saved to reverb.json"
     
     echo ""
-    echo -e "${CYAN}Step 3/6: Configuring Reverb server .env...${NC}"
+    echo -e "${CYAN}Step 3/7: Configuring Reverb server .env...${NC}"
     
     local env_file="$home_dir/.env"
     
@@ -291,16 +293,36 @@ reverb_setup() {
     chown "$username:$username" "$env_file"
     echo "  → Reverb server .env configured"
 
+    echo ""
+    echo -e "${CYAN}Step 4/7: Running deployment...${NC}"
+    
+    if [ -f "$home_dir/deploy.sh" ]; then
+        local deploy_log="$home_dir/logs/deploy.log"
+        sudo -u "$username" "$home_dir/deploy.sh" 2>&1 | tee "$deploy_log"
+        local deploy_exit=${PIPESTATUS[0]}
+        
+        if [ $deploy_exit -eq 0 ]; then
+            echo "  → Deployment completed"
+        else
+            echo -e "  → ${YELLOW}Deployment had issues (exit code: $deploy_exit)${NC}"
+            echo -e "  ${YELLOW}Full log: cat $deploy_log${NC}"
+        fi
+        
+        chown "$username:$username" "$deploy_log" 2>/dev/null || true
+    else
+        echo -e "  → ${YELLOW}Deploy script not found${NC}"
+    fi
+
     # Rebuild config cache to include new env vars
     echo "  → Rebuilding config cache..."
     sudo -u "$username" php "${home_dir}/current/artisan" config:cache
 
     echo ""
-    echo -e "${CYAN}Step 4/6: Setting production file limits...${NC}"
+    echo -e "${CYAN}Step 5/7: Setting production file limits...${NC}"
     set_reverb_file_limits "$username"
     
     echo ""
-    echo -e "${CYAN}Step 5/6: Adding WebSocket proxy to nginx...${NC}"
+    echo -e "${CYAN}Step 6/7: Adding WebSocket proxy to nginx...${NC}"
     
     # Domain + SSL are already set up by provision_create
     # Regenerate SSL config with websocket proxy included
@@ -316,7 +338,7 @@ reverb_setup() {
     echo "  → WebSocket proxy added to nginx config"
     
     echo ""
-    echo -e "${CYAN}Step 6/6: Creating supervisor config...${NC}"
+    echo -e "${CYAN}Step 7/7: Creating supervisor config...${NC}"
     
     # Validate artisan is ready before setting up supervisor
     echo "  → Validating artisan command..."
