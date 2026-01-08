@@ -691,12 +691,19 @@ install_cipi() {
     chown -R root:root /usr/local/bin/cipi /opt/cipi
     
     # Initialize storage
-    for file in apps.json domains.json databases.json; do
+    # apps.json and domains.json are 644 (readable by www-data for webhooks)
+    # databases.json stays 600 (contains sensitive info)
+    for file in apps.json domains.json; do
         if [ ! -f "/etc/cipi/$file" ]; then
             echo "{}" > "/etc/cipi/$file"
-            chmod 600 "/etc/cipi/$file"
+            chmod 644 "/etc/cipi/$file"
         fi
     done
+    
+    if [ ! -f "/etc/cipi/databases.json" ]; then
+        echo "{}" > "/etc/cipi/databases.json"
+        chmod 600 "/etc/cipi/databases.json"
+    fi
     
     # Create version file with commit hash
     cat > /etc/cipi/version.json <<EOF
