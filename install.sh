@@ -30,7 +30,8 @@ update_config_json() {
     
     # Ensure directory exists
     mkdir -p /etc/cipi
-    chmod 700 /etc/cipi
+    # 751 so www-data can traverse to read apps.json, but can't list contents
+    chmod 751 /etc/cipi
     
     if [ -f "$config_file" ]; then
         # Update existing config
@@ -668,7 +669,8 @@ install_cipi() {
     # Create directories
     mkdir -p /opt/cipi/lib
     mkdir -p /etc/cipi
-    chmod 700 /etc/cipi
+    # 751 so www-data can traverse to read apps.json, but can't list contents
+    chmod 751 /etc/cipi
     
     # Download Cipi
     cd /tmp
