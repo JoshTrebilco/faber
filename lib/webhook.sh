@@ -4,7 +4,7 @@
 # Webhook Management Functions
 #############################################
 
-WEBHOOK_HANDLER="/opt/cipi/webhook.php"
+WEBHOOK_HANDLER="/opt/cipi/web/webhook.php"
 WEBHOOK_LOG="/var/log/cipi/webhook.log"
 
 # Generate webhook secret for an app
