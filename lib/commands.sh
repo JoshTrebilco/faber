@@ -369,6 +369,9 @@ cmd_webhook() {
         regenerate)
             webhook_regenerate_secret "$@"
             ;;
+        delete)
+            webhook_delete "$@"
+            ;;
         logs)
             webhook_logs "$@"
             ;;
@@ -379,7 +382,7 @@ cmd_webhook() {
                 echo -e "Did you mean: ${CYAN}$suggestion${NC}?"
                 echo ""
             fi
-            echo "Usage: cipi webhook {setup|show|regenerate|logs} <username>"
+            echo "Usage: cipi webhook {setup|show|regenerate|delete|logs} <username>"
             echo "Run 'cipi webhook --help' for more information"
             exit 1
             ;;

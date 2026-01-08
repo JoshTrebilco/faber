@@ -38,7 +38,7 @@ _cipi() {
                 COMPREPLY=($(compgen -W "restart" -- "$cur"))
                 ;;
             webhook)
-                COMPREPLY=($(compgen -W "show regenerate logs" -- "$cur"))
+                COMPREPLY=($(compgen -W "setup show regenerate delete logs" -- "$cur"))
                 ;;
             reverb)
                 COMPREPLY=($(compgen -W "setup show start stop restart delete" -- "$cur"))
@@ -97,7 +97,7 @@ _cipi() {
                 ;;
             webhook)
                 case "${COMP_WORDS[2]}" in
-                    show|regenerate)
+                    setup|show|regenerate|delete)
                         if [ -f /etc/cipi/apps.json ]; then
                             COMPREPLY=($(compgen -W "$(jq -r 'keys[]' /etc/cipi/apps.json 2>/dev/null)" -- "$cur"))
                         fi

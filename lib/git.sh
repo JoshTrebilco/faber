@@ -378,6 +378,56 @@ github_create_webhook() {
     return 0
 }
 
+# Helper: Delete GitHub webhook by finding it via URL
+# Usage: github_delete_webhook "owner/repo" "access_token" "webhook_url"
+# Returns: 0 on success, 1 on failure
+github_delete_webhook() {
+    local owner_repo=$1
+    local access_token=$2
+    local webhook_url=$3
+    
+    if [ -z "$owner_repo" ] || [ -z "$access_token" ] || [ -z "$webhook_url" ]; then
+        echo -e "${RED}Error: Missing required parameters for webhook deletion${NC}"
+        return 1
+    fi
+    
+    echo -e "${CYAN}Finding webhook on GitHub...${NC}"
+    
+    # List all webhooks for the repo
+    local hooks_response=$(curl -s -X GET \
+        "https://api.github.com/repos/$owner_repo/hooks" \
+        -H "Authorization: Bearer $access_token" \
+        -H "Accept: application/vnd.github+json" \
+        -H "X-GitHub-Api-Version: 2022-11-28")
+    
+    # Find webhook ID by matching URL
+    local webhook_id=$(echo "$hooks_response" | jq -r ".[] | select(.config.url == \"$webhook_url\") | .id")
+    
+    if [ -z "$webhook_id" ] || [ "$webhook_id" = "null" ]; then
+        echo -e "${YELLOW}No webhook found matching URL: $webhook_url${NC}"
+        return 0
+    fi
+    
+    echo -e "${CYAN}Deleting webhook ID: $webhook_id...${NC}"
+    
+    # Delete the webhook
+    local delete_response=$(curl -s -X DELETE \
+        "https://api.github.com/repos/$owner_repo/hooks/$webhook_id" \
+        -H "Authorization: Bearer $access_token" \
+        -H "Accept: application/vnd.github+json" \
+        -H "X-GitHub-Api-Version: 2022-11-28" \
+        -w "%{http_code}" \
+        -o /dev/null)
+    
+    if [ "$delete_response" = "204" ]; then
+        echo -e "${GREEN}✓ Webhook deleted successfully${NC}"
+        return 0
+    else
+        echo -e "${RED}Error: Failed to delete webhook (HTTP $delete_response)${NC}"
+        return 1
+    fi
+}
+
 # Helper: Setup GitHub webhook for an app (full flow: auth + create)
 # This is a convenience function that handles the complete webhook setup
 # Usage: github_setup_webhook "repository_url" "webhook_url" "webhook_secret"
