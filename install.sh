@@ -904,7 +904,6 @@ function trigger_deployment($username) {
     }
     
     // Run deployment as the app user
-    // Use sudo to switch to the app user and run the deploy script
     $command = sprintf(
         'sudo -u %s bash -c "cd %s && ./deploy.sh" 2>&1',
         escapeshellarg($username),
@@ -1016,20 +1015,34 @@ $repo = $data['repository']['full_name'] ?? 'unknown';
 
 webhook_log("Push event: $repo ($ref) by $pusher");
 
-// Trigger deployment
+// Send response to GitHub immediately, then run deployment
+// This prevents GitHub timeout while still running deployment synchronously
+header('Content-Type: application/json');
+http_response_code(200);
+echo json_encode([
+    'status' => 'ok',
+    'message' => 'Deployment started',
+    'app' => $username,
+    'ref' => $ref,
+    'repository' => $repo
+]);
+
+// Flush output and close connection to GitHub
+if (function_exists('fastcgi_finish_request')) {
+    fastcgi_finish_request();
+} else {
+    // Fallback for non-FPM environments
+    ob_end_flush();
+    flush();
+}
+
+// Now run deployment (GitHub won't wait for this)
 $result = trigger_deployment($username);
 
 if ($result['success']) {
-    respond(200, 'Deployment triggered successfully', [
-        'app' => $username,
-        'ref' => $ref,
-        'repository' => $repo
-    ]);
+    webhook_log("Deployment completed for $username", 'INFO');
 } else {
-    respond(500, 'Deployment failed', [
-        'app' => $username,
-        'error' => $result['error'] ?? 'Unknown error'
-    ]);
+    webhook_log("Deployment failed for $username: " . ($result['error'] ?? 'Unknown'), 'ERROR');
 }
 WEBHOOKPHP
     
