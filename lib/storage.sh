@@ -19,20 +19,28 @@ init_storage() {
     # Allow www-data to traverse for webhook handler
     chmod 751 "${STORAGE_DIR}" 
     
-    for file in "${APPS_FILE}" "${DOMAINS_FILE}" "${WEBHOOKS_FILE}" "${VERSION_FILE}"; do
+    # Files readable by www-data for webhook handler
+    for file in "${APPS_FILE}" "${DOMAINS_FILE}" "${VERSION_FILE}"; do
         if [ ! -f "$file" ]; then
             echo "{}" > "$file"
-            # Readable by www-data for webhook handler
-            chmod 644 "$file"
         fi
+        chmod 640 "$file"
+        chown root:www-data "$file"
     done
+    
+    # Webhooks file needs www-data read access for signature validation
+    if [ ! -f "${WEBHOOKS_FILE}" ]; then
+        echo "{}" > "${WEBHOOKS_FILE}"
+    fi
+    chmod 640 "${WEBHOOKS_FILE}"
+    chown root:www-data "${WEBHOOKS_FILE}"
     
     # Sensitive files - keep restricted (passwords, secrets)
     for file in "${DATABASES_FILE}" "${CONFIG_FILE}"; do
         if [ ! -f "$file" ]; then
             echo "{}" > "$file"
-            chmod 600 "$file"
         fi
+        chmod 600 "$file"
     done
 }
 
