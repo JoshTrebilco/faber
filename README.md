@@ -19,13 +19,17 @@
 
 Cipi is a **CLI-based server control panel** designed exclusively for **Laravel developers** who need a secure, production-ready hosting environment on Ubuntu VPS. With Cipi, you can:
 
-- ✨ Create isolated virtual hosts with individual users and PHP versions
+- ⚡ One-command stack creation (app + domain + database + SSL + deploy)
+- 🎯 Built for Laravel with scheduler, queues, and production .env setup
+- 📡 Laravel Reverb WebSocket server support
+- 🚀 Zero-downtime deployments with atomic releases
+- 🔗 GitHub webhook auto-deployment on push
 - 🔒 Automatic SSL certificates with Let's Encrypt
 - 🗄️ Manage MySQL databases
 - 🌐 Configure domains
-- 🐘 Install and manage multiple PHP versions (5.6 - 8.5)
-- 🔄 Deploy Laravel applications with Git
 - 📊 Monitor server status
+- 🐘 Install and manage multiple PHP versions
+- ✨ Isolated virtual hosts with individual users and PHP versions
 - 🛡️ Built-in fail2ban + ClamAV antivirus protection
 - 🔐 Secure password management (never stored in plain text)
 
@@ -38,6 +42,8 @@ Cipi is a **CLI-based server control panel** designed exclusively for **Laravel 
 Cipi is **specifically designed for Laravel applications** and developers who:
 
 - ✅ Want a **secure, production-ready** server without complex DevOps knowledge
+- ✅ Need **zero-downtime deployments** without configuring Envoyer or Deployer
+- ✅ Want **automatic GitHub integration** (deploy keys + webhooks configured for you)
 - ✅ Need **isolated environments** for multiple Laravel projects on one VPS
 - ✅ Prefer **CLI management** over web-based control panels
 - ✅ Value **security hardening** with automatic updates and malware scanning
@@ -141,22 +147,35 @@ wget -O - https://raw.githubusercontent.com/JoshTrebilco/cipi/refs/heads/latest/
 
 ### Quick Start Example
 
-The fastest way to deploy a Laravel application:
+Deploy a production-ready Laravel app with zero-downtime deployments:
 
 ```bash
-# 1. Create your stack (app + domain + database + SSL in one command)
+# Interactive mode - recommended for first use
+cipi stack create
+
+# Or non-interactive with all options
 cipi stack create \
   --user=myapp \
   --repository=https://github.com/user/repo.git \
   --domain=example.com \
   --php=8.4
+```
 
-# 2. View webhook configuration for auto-deployment
-cipi webhook show myapp
-# Copy the webhook URL and secret to GitHub repository settings
-# Note: Webhook domain and SSL email are set during installation
+That's it! One command creates:
 
-# 5. Deploy updates manually (or let webhook handle it)
+- ✅ Isolated system user with SSH keys
+- ✅ Zero-downtime deployment structure
+- ✅ Git clone with auto deploy key added to GitHub
+- ✅ GitHub webhook for auto-deployment on push
+- ✅ PHP-FPM pool and Nginx virtual host
+- ✅ Domain with automatic Let's Encrypt SSL
+- ✅ MySQL database with secure credentials
+- ✅ Production-ready `.env` configuration
+- ✅ Initial deployment (composer, npm, migrations)
+- ✅ Log rotation and Laravel scheduler cron
+
+```bash
+# Future deploys happen automatically via webhook, or manually:
 cipi deploy myapp
 ```
 
@@ -175,10 +194,10 @@ cipi version
 
 ### Stack (Full Stack Creation)
 
-The `stack` command is the **recommended way** to set up a complete Laravel application. It creates the app, domain, database, configures SSL, updates `.env`, and runs the initial deployment in one command.
+The `stack` command is the **recommended way** to deploy a production-ready Laravel application. It orchestrates everything needed to go from a Git repository to a live, SSL-secured application in one command—with zero-downtime deployments built in from the start.
 
 ```bash
-# Create a new stack (interactive)
+# Create a new stack (interactive - recommended for first use)
 cipi stack create
 
 # Create a new stack (non-interactive)
@@ -208,23 +227,36 @@ cipi stack delete myapp --dbname=mydb
 
 **What Stack Create Does:**
 
-1. **Creates the app** - Sets up virtual host, user, Git repository, PHP-FPM pool, Nginx config, webhook secret
-2. **Assigns domain** - Configures domain and attempts automatic SSL certificate setup
-3. **Creates database** - Generates database with secure credentials
-4. **Updates .env** - Automatically configures:
-   - Database connection (DB_HOST, DB_DATABASE, DB_USERNAME, DB_PASSWORD)
-   - APP_URL (if domain provided)
-   - APP_ENV=production, APP_DEBUG=false
-   - Redis configuration (CACHE_DRIVER, SESSION_DRIVER, REDIS_HOST, etc.)
-   - Queue connection (QUEUE_CONNECTION=database)
-5. **Runs deployment** - Executes initial deployment script (composer install, migrations, cache optimization, etc.)
+| Step | Component    | What It Creates                                                                    |
+| ---- | ------------ | ---------------------------------------------------------------------------------- |
+| 1    | **App**      | Isolated system user, SSH key pair, zero-downtime directory structure              |
+| 2    | **Git**      | Clones repository, auto-adds deploy key to GitHub, creates webhook for auto-deploy |
+| 3    | **PHP**      | Dedicated PHP-FPM pool for the app                                                 |
+| 4    | **Nginx**    | Virtual host configuration with security headers                                   |
+| 5    | **Domain**   | Assigns domain, obtains Let's Encrypt SSL certificate                              |
+| 6    | **Database** | MySQL database with secure credentials                                             |
+| 7    | **.env**     | Production-ready configuration (see below)                                         |
+| 8    | **Deploy**   | Runs composer, npm build, migrations, cache optimization — all with zero downtime  |
+| 9    | **Extras**   | Log rotation, Laravel scheduler cron, Reverb WebSocket client (if configured)      |
+
+**Automatic .env Configuration:**
+
+- `APP_NAME`, `APP_ENV=production`, `APP_DEBUG=false`
+- `APP_KEY` (auto-generated)
+- `APP_URL` with your domain
+- `DB_*` connection settings
+- `REDIS_*` for cache and sessions (if Redis available)
+- `QUEUE_CONNECTION=database`
 
 **Skip Flags:**
 
-- `--skip-db` - Don't create a database
-- `--skip-domain` - Don't assign a domain
-- `--skip-env` - Don't update the .env file
-- `--skip-deploy` - Don't run the initial deployment
+| Flag            | Effect                                   |
+| --------------- | ---------------------------------------- |
+| `--skip-db`     | Don't create a database                  |
+| `--skip-domain` | Don't assign a domain or SSL             |
+| `--skip-env`    | Don't auto-configure .env file           |
+| `--skip-deploy` | Don't run initial deployment             |
+| `--skip-reverb` | Don't connect to Reverb WebSocket server |
 
 ### App Management
 
@@ -422,9 +454,9 @@ Cipi uses **zero-downtime deployments** with an Envoyer-style release structure:
 
 ```
 /home/<username>/
-├── current -> releases/20260106123456/   # Symlink to active release
+├── current -> releases/20260106123456/    # Symlink to active release
 ├── releases/                              # Timestamped release directories
-│   ├── 20260106123456/                   # Each deployment creates a new release
+│   ├── 20260106123456/                    # Each deployment creates a new release
 │   └── 20260106100000/
 ├── storage/                               # Shared persistent storage
 │   ├── app/
