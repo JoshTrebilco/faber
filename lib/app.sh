@@ -142,22 +142,15 @@ app_create() {
     git_setup_ssh_config "$username" "$home_dir"
     local clone_url=$(git_url_to_ssh "$repository")
     
-    # Check if GitHub private repo - if so, add deploy key before cloning
-    echo "  → Checking repository access..."
-    local repo_visibility=$(github_is_repo_private "$repository")
-    local deploy_key_failed=false
-    
-    if [ "$repo_visibility" = "private" ]; then
-        local public_key=$(cat "$home_dir/gitkey.pub")
-        if ! github_add_deploy_key "$repository" "cipi-$username" "$public_key"; then
-            deploy_key_failed=true
-            echo -e "  ${YELLOW}⚠ Could not add deploy key automatically${NC}"
-            echo -e "  ${YELLOW}  Please add this key as a deploy key to your repository:${NC}"
-            echo ""
-            cat "$home_dir/gitkey.pub"
-            echo ""
-            read -p "  Press Enter once you've added the key to continue, or Ctrl+C to abort..."
-        fi
+    echo "  → Adding deploy key for SSH access..."
+    local public_key=$(cat "$home_dir/gitkey.pub")
+    if ! github_add_deploy_key "$repository" "cipi-$username" "$public_key"; then
+        echo -e "  ${YELLOW}⚠ Could not add deploy key automatically${NC}"
+        echo -e "  ${YELLOW}  Please add this key as a deploy key to your repository:${NC}"
+        echo ""
+        cat "$home_dir/gitkey.pub"
+        echo ""
+        read -p "  Press Enter once you've added the key to continue, or Ctrl+C to abort..."
     fi
     
     # Clone repository into first release
@@ -165,7 +158,7 @@ app_create() {
     sudo -u "$username" git clone -b "$branch" --depth 1 "$clone_url" "$release_dir" 2>/dev/null
     if [ $? -ne 0 ]; then
         echo -e "${RED}Error: Failed to clone repository${NC}"
-        echo -e "${YELLOW}If this is a private repository, ensure the deploy key was added correctly.${NC}"
+        echo -e "${YELLOW}Ensure the deploy key was added correctly.${NC}"
         delete_system_user "$username"
         rm -rf "$home_dir"
         exit 1
