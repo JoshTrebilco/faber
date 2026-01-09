@@ -767,13 +767,16 @@ app_delete() {
     echo "  → Deleting log rotation config..."
     rm -f "/etc/logrotate.d/cipi-$username"
     
-    # Delete GitHub webhook if OAuth is configured
+    # Delete GitHub webhook and deploy key if OAuth is configured
     local github_client_id=$(get_config "github_client_id")
     local repository=$(get_app_field "$username" "repository")
     if [ -n "$github_client_id" ] && [ -n "$repository" ] && [ "$repository" != "null" ]; then
         echo "  → Deleting GitHub webhook..."
         # Run in subshell so failure doesn't stop deletion
         (webhook_delete "$username" "$repository" 2>&1) || echo "    (GitHub webhook deletion failed or not found)"
+        
+        echo "  → Deleting GitHub deploy key..."
+        (github_delete_deploy_key "$repository" "cipi-$username" 2>&1) || echo "    (GitHub deploy key deletion failed or not found)"
     fi
     
     # Delete local webhook secret

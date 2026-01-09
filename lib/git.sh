@@ -318,6 +318,69 @@ github_add_deploy_key() {
     return 0
 }
 
+# Helper: Delete deploy key from GitHub repo
+# Usage: github_delete_deploy_key "repository" "key_title"
+# Returns: 0 on success, 1 on failure
+github_delete_deploy_key() {
+    local repository=$1
+    local key_title=$2
+    
+    local owner_repo=$(github_parse_repo "$repository")
+    
+    if [ -z "$owner_repo" ]; then
+        return 1
+    fi
+    
+    local github_client_id=$(get_config "github_client_id")
+    
+    if [ -z "$github_client_id" ]; then
+        return 1
+    fi
+    
+    # Get access token via Device Flow OAuth
+    local access_token=$(github_device_flow_auth "repo")
+    
+    if [ -z "$access_token" ]; then
+        echo -e "  ${RED}Error: Failed to authenticate with GitHub${NC}"
+        return 1
+    fi
+    
+    # List all deploy keys for the repo
+    local keys_response=$(curl -s -X GET \
+        "https://api.github.com/repos/$owner_repo/keys" \
+        -H "Authorization: Bearer $access_token" \
+        -H "Accept: application/vnd.github+json" \
+        -H "X-GitHub-Api-Version: 2022-11-28")
+    
+    # Find key ID by matching title
+    local key_id=$(echo "$keys_response" | jq -r ".[] | select(.title == \"$key_title\") | .id")
+    
+    if [ -z "$key_id" ] || [ "$key_id" = "null" ]; then
+        echo -e "  ${YELLOW}No deploy key found matching title: $key_title${NC}"
+        unset access_token
+        return 0
+    fi
+    
+    # Delete the deploy key
+    local delete_response=$(curl -s -X DELETE \
+        "https://api.github.com/repos/$owner_repo/keys/$key_id" \
+        -H "Authorization: Bearer $access_token" \
+        -H "Accept: application/vnd.github+json" \
+        -H "X-GitHub-Api-Version: 2022-11-28" \
+        -w "%{http_code}" \
+        -o /dev/null)
+    
+    unset access_token
+    
+    if [ "$delete_response" = "204" ]; then
+        echo -e "  ${GREEN}✓ Deploy key deleted successfully${NC}"
+        return 0
+    else
+        echo -e "  ${RED}Error: Failed to delete deploy key (HTTP $delete_response)${NC}"
+        return 1
+    fi
+}
+
 # Helper: Create GitHub webhook using an access token
 # Usage: github_create_webhook "owner/repo" "access_token" "webhook_url" "webhook_secret"
 # Returns: 0 on success, 1 on failure
