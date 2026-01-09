@@ -534,7 +534,7 @@ update_env_file() {
         set_env_var "$env_file" "DB_USERNAME" "$db_username"
         
         if [ -n "$db_password" ]; then
-            set_env_var "$env_file" "DB_PASSWORD" "$db_password"
+            set_env_var "$env_file" "DB_PASSWORD" "\"$db_password\""
         fi
         echo "  → Updated database settings in .env"
     fi
