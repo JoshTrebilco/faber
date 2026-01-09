@@ -272,9 +272,6 @@ github_add_deploy_key() {
         return 1
     fi
     
-    echo ""
-    echo -e "  ${CYAN}Private repository detected - adding deploy key via GitHub API...${NC}"
-    
     # Get access token via Device Flow OAuth
     local access_token=$(github_device_flow_auth "repo")
     
