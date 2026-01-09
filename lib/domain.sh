@@ -13,18 +13,18 @@ cleanup_ssl_certificate() {
     fi
 }
 
-# Helper: Setup SSL certificate for domain
-setup_ssl_certificate() {
+# Helper: Create SSL certificate for domain
+create_ssl_certificate() {
     local domain=$1
     local app=$2
     local php_version=$3
     local domain_data=$4
     
-    echo "  → Setting up SSL certificate..."
+    echo "  → Creating SSL certificate..."
     local ssl_email=$(get_config "ssl_email")
     
     if [ -z "$ssl_email" ]; then
-        echo -e "  ${YELLOW}⚠ SSL email not configured, skipping SSL setup${NC}"
+        echo -e "  ${YELLOW}⚠ SSL email not configured, skipping SSL creation${NC}"
         echo -e "  ${YELLOW}Configure with: cipi config set ssl_email your@email.com${NC}"
         return 1
     fi
@@ -63,7 +63,7 @@ setup_ssl_certificate() {
             return 1
         fi
     else
-        echo -e "  ${YELLOW}⚠ SSL certificate setup failed${NC}"
+        echo -e "  ${YELLOW}⚠ SSL certificate creation failed${NC}"
         # Show relevant error from certbot output
         if echo "$certbot_output" | grep -qi "too many\|rate limit"; then
             # Extract the rate limit error line which includes retry time
@@ -199,9 +199,9 @@ domain_create() {
     
     json_set "${DOMAINS_FILE}" "$domain" "$domain_data"
     
-    # Attempt automatic SSL setup
+    # Attempt automatic SSL creation
     local ssl_success=false
-    if setup_ssl_certificate "$domain" "$app" "$php_version" "$domain_data"; then
+    if create_ssl_certificate "$domain" "$app" "$php_version" "$domain_data"; then
         ssl_success=true
     fi
     

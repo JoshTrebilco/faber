@@ -16,10 +16,10 @@ _cipi() {
     COMPREPLY=()
     
     if [ $COMP_CWORD -eq 1 ]; then
-        COMPREPLY=($(compgen -W "status version provision app domain database php service webhook reverb logs update help completion" -- "$cur"))
+        COMPREPLY=($(compgen -W "status version stack app domain database php service webhook reverb deploy logs update help completion" -- "$cur"))
     elif [ $COMP_CWORD -eq 2 ]; then
         case "$prev" in
-            provision)
+            stack)
                 COMPREPLY=($(compgen -W "create delete" -- "$cur"))
                 ;;
             app)
@@ -38,18 +38,23 @@ _cipi() {
                 COMPREPLY=($(compgen -W "restart" -- "$cur"))
                 ;;
             webhook)
-                COMPREPLY=($(compgen -W "show regenerate logs" -- "$cur"))
+                COMPREPLY=($(compgen -W "create show regenerate delete logs" -- "$cur"))
                 ;;
             reverb)
-                COMPREPLY=($(compgen -W "setup show start stop restart delete" -- "$cur"))
+                COMPREPLY=($(compgen -W "create show start stop restart delete" -- "$cur"))
                 ;;
             completion)
                 COMPREPLY=($(compgen -W "bash" -- "$cur"))
                 ;;
+            deploy)
+                if [ -f /etc/cipi/apps.json ]; then
+                    COMPREPLY=($(compgen -W "$(jq -r 'keys[]' /etc/cipi/apps.json 2>/dev/null)" -- "$cur"))
+                fi
+                ;;
         esac
     elif [ $COMP_CWORD -eq 3 ]; then
         case "${COMP_WORDS[1]}" in
-            provision)
+            stack)
                 case "${COMP_WORDS[2]}" in
                     delete)
                         if [ -f /etc/cipi/apps.json ]; then
@@ -92,7 +97,7 @@ _cipi() {
                 ;;
             webhook)
                 case "${COMP_WORDS[2]}" in
-                    show|regenerate)
+                    create|show|regenerate|delete)
                         if [ -f /etc/cipi/apps.json ]; then
                             COMPREPLY=($(compgen -W "$(jq -r 'keys[]' /etc/cipi/apps.json 2>/dev/null)" -- "$cur"))
                         fi

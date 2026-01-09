@@ -186,7 +186,7 @@ run_deployment() {
     echo "Finished at $(date)"
     echo "═══════════════════════════════════════"
     
-    [ $DEPLOY_FAILED -eq 1 ] && exit 1
+    exit $DEPLOY_FAILED
 }
 
 #############################################

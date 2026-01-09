@@ -144,8 +144,8 @@ wget -O - https://raw.githubusercontent.com/JoshTrebilco/cipi/refs/heads/latest/
 The fastest way to deploy a Laravel application:
 
 ```bash
-# 1. Provision your app (creates everything in one command)
-cipi provision create \
+# 1. Create your stack (app + domain + database + SSL in one command)
+cipi stack create \
   --user=myapp \
   --repository=https://github.com/user/repo.git \
   --domain=example.com \
@@ -157,7 +157,7 @@ cipi webhook show myapp
 # Note: Webhook domain and SSL email are set during installation
 
 # 5. Deploy updates manually (or let webhook handle it)
-sudo -u myapp /home/myapp/deploy.sh
+cipi deploy myapp
 ```
 
 ### Basic Commands
@@ -173,16 +173,16 @@ cipi help
 cipi version
 ```
 
-### Provision (Quick Setup)
+### Stack (Full Stack Creation)
 
-The `provision` command is the **recommended way** to set up a complete Laravel application. It creates the app, domain, database, configures SSL, updates `.env`, and runs the initial deployment in one command.
+The `stack` command is the **recommended way** to set up a complete Laravel application. It creates the app, domain, database, configures SSL, updates `.env`, and runs the initial deployment in one command.
 
 ```bash
-# Provision a new app (interactive)
-cipi provision create
+# Create a new stack (interactive)
+cipi stack create
 
-# Provision a new app (non-interactive)
-cipi provision create \
+# Create a new stack (non-interactive)
+cipi stack create \
   --user=myapp \
   --repository=https://github.com/user/repo.git \
   --domain=example.com \
@@ -191,7 +191,7 @@ cipi provision create \
   --dbname=mydb
 
 # Skip optional steps
-cipi provision create \
+cipi stack create \
   --user=myapp \
   --repository=https://github.com/user/repo.git \
   --domain=example.com \
@@ -199,14 +199,14 @@ cipi provision create \
   --skip-env \
   --skip-deploy
 
-# Delete app and optionally database
-cipi provision delete myapp
+# Delete stack and optionally database
+cipi stack delete myapp
 
-# Delete app and database together
-cipi provision delete myapp --dbname=mydb
+# Delete stack and database together
+cipi stack delete myapp --dbname=mydb
 ```
 
-**What Provision Does:**
+**What Stack Create Does:**
 
 1. **Creates the app** - Sets up virtual host, user, Git repository, PHP-FPM pool, Nginx config, webhook secret
 2. **Assigns domain** - Configures domain and attempts automatic SSL certificate setup

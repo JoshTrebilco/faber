@@ -53,7 +53,7 @@ database_create() {
     
     # Generate credentials
     local db_username=$(generate_db_username)
-    local db_password=$(generate_password 16)
+    local db_password=$(generate_password 24)
     local root_password=$(get_mysql_root_password)
     
     # Create database and user
@@ -166,7 +166,7 @@ database_password() {
     
     # Generate or use provided password
     if [ -z "$new_password" ]; then
-        new_password=$(generate_password 16)
+        new_password=$(generate_password 24)
         echo "Generated new password: ${CYAN}$new_password${NC}"
     else
         echo "Using provided password"
@@ -231,7 +231,7 @@ database_delete() {
     fi
     
     # Confirm deletion
-    echo -e "${YELLOW}${BOLD}Warning: This will permanently delete the database and all its data!${NC}"
+    echo -e "${YELLOW}${BOLD}Warning: This will permanently delete the ${CYAN}$dbname${YELLOW}${BOLD} database and all its data!${NC}"
     read -p "Type the database name to confirm: " confirm
     
     if [ "$confirm" != "$dbname" ]; then

@@ -118,7 +118,7 @@ main() {
     if check_help_flag "$@"; then
         # Extract command context for help
         case $COMMAND in
-            provision|app|domain|database|php|service|webhook|reverb)
+            stack|app|domain|database|php|service|webhook|reverb)
                 local subcmd="$1"
                 if [ -n "$subcmd" ] && [ "$subcmd" != "--help" ] && [ "$subcmd" != "-h" ]; then
                     show_help_subcommand "$COMMAND" "$subcmd"
@@ -143,8 +143,8 @@ main() {
         config)
             cmd_config "$@"
             ;;
-        provision)
-            cmd_provision "$@"
+        stack)
+            cmd_stack "$@"
             ;;
         app)
             cmd_app "$@"
@@ -172,6 +172,9 @@ main() {
             ;;
         update)
             cmd_update "$@"
+            ;;
+        deploy)
+            cmd_deploy "$@"
             ;;
         *)
             echo -e "${RED}Unknown command: $COMMAND${NC}"

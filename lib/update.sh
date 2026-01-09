@@ -162,6 +162,15 @@ update_cipi() {
         chmod 711 /opt/cipi "${CIPI_LIB_DIR}"   # Traversable but not listable
         chown -R root:root "${CIPI_LIB_DIR}"
     fi
+
+    # Copy web files (webhook.php, etc.)
+    if [ -d "${tmp_dir}/${extract_dir}/web" ]; then
+        mkdir -p /opt/cipi/web
+        cp -r "${tmp_dir}/${extract_dir}/web"/* /opt/cipi/web/
+        chmod 644 /opt/cipi/web/*.php           # Readable by www-data for nginx/php-fpm
+        chmod 711 /opt/cipi/web                 # Traversable but not listable
+        chown -R root:root /opt/cipi/web
+    fi
     
     # Update version file with new commit
     echo "  → Updating version information..."

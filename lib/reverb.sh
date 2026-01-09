@@ -39,15 +39,15 @@ configure_app_for_reverb() {
     set_env_var "$env_file" "REVERB_APP_ID" "$reverb_app_id"
     set_env_var "$env_file" "REVERB_APP_KEY" "$reverb_app_key"
     set_env_var "$env_file" "REVERB_APP_SECRET" "$reverb_app_secret"
-    set_env_var "$env_file" "REVERB_HOST" "$reverb_domain"
+    set_env_var "$env_file" "REVERB_HOST" "\"$reverb_domain\""
     set_env_var "$env_file" "REVERB_PORT" "443"
     set_env_var "$env_file" "REVERB_SCHEME" "https"
     
     # Vite environment variables for frontend
-    set_env_var "$env_file" "VITE_REVERB_APP_KEY" "\${REVERB_APP_KEY}"
-    set_env_var "$env_file" "VITE_REVERB_HOST" "\${REVERB_HOST}"
-    set_env_var "$env_file" "VITE_REVERB_PORT" "\${REVERB_PORT}"
-    set_env_var "$env_file" "VITE_REVERB_SCHEME" "\${REVERB_SCHEME}"
+    set_env_var "$env_file" "VITE_REVERB_APP_KEY" "$reverb_app_key"
+    set_env_var "$env_file" "VITE_REVERB_HOST" "\"$reverb_domain\""
+    set_env_var "$env_file" "VITE_REVERB_PORT" "443"
+    set_env_var "$env_file" "VITE_REVERB_SCHEME" "https"
     
     chown "$username:$username" "$env_file"
 }
@@ -114,7 +114,7 @@ validate_reverb_artisan() {
     # Check if vendor directory exists (composer deps installed)
     if [ ! -d "$vendor_dir" ]; then
         echo -e "  ${RED}✗ Composer dependencies not installed (vendor/ missing)${NC}"
-        echo -e "  ${YELLOW}  Run: sudo -u $username $home_dir/deploy.sh${NC}"
+        echo -e "  ${YELLOW}  Run: cipi deploy $username${NC}"
         return 1
     fi
     
@@ -142,8 +142,8 @@ EOF
 }
 
 
-# Main setup function
-reverb_setup() {
+# Main create function
+reverb_create() {
     local username="reverb"
     local repository=""
     local domain=""
@@ -182,7 +182,7 @@ reverb_setup() {
     # Interactive prompts
     if [ -z "$repository" ] || [ -z "$domain" ]; then
         interactive=true
-        echo -e "${BOLD}Reverb WebSocket Server Setup${NC}"
+        echo -e "${BOLD}Reverb WebSocket Server Creation${NC}"
         echo "─────────────────────────────────────"
         echo ""
         
@@ -225,23 +225,25 @@ reverb_setup() {
     fi
     
     echo ""
-    echo -e "${CYAN}Step 1/6: Provisioning Reverb app...${NC}"
+    echo -e "${CYAN}Step 1/7: Creating Reverb app...${NC}"
     
-    # Provision the app (skip database and reverb client config)
-    # Domain + SSL will be set up automatically by provision_create
-    provision_create \
+    # Create the app stack (skip database, reverb client config, and deploy)
+    # Deploy is deferred until after .env is configured with VITE_* vars
+    # Domain + SSL will be set up automatically by stack_create
+    stack_create \
         --user="$username" \
         --repository="$repository" \
         --domain="$domain" \
         --branch="$branch" \
         --php="$php_version" \
         --skip-db \
-        --skip-reverb
+        --skip-reverb \
+        --skip-deploy
     
     local home_dir="/home/$username"
     
     echo ""
-    echo -e "${CYAN}Step 2/6: Generating Reverb credentials...${NC}"
+    echo -e "${CYAN}Step 2/7: Generating Reverb credentials...${NC}"
     
     # Generate credentials
     local app_id=$(shuf -i 100000-999999 -n 1)
@@ -253,7 +255,7 @@ reverb_setup() {
     echo "  → Credentials saved to reverb.json"
     
     echo ""
-    echo -e "${CYAN}Step 3/6: Configuring Reverb server .env...${NC}"
+    echo -e "${CYAN}Step 3/7: Configuring Reverb server .env...${NC}"
     
     local env_file="$home_dir/.env"
     
@@ -275,7 +277,7 @@ reverb_setup() {
     # Configure Reverb server env vars
     set_env_var "$env_file" "REVERB_SERVER_HOST" "0.0.0.0"
     set_env_var "$env_file" "REVERB_SERVER_PORT" "8080"
-    set_env_var "$env_file" "REVERB_HOST" "$domain"
+    set_env_var "$env_file" "REVERB_HOST" "\"$domain\""
     set_env_var "$env_file" "REVERB_PORT" "443"
     set_env_var "$env_file" "REVERB_SCHEME" "https"
     set_env_var "$env_file" "REVERB_APP_ID" "$app_id"
@@ -283,22 +285,46 @@ reverb_setup() {
     set_env_var "$env_file" "REVERB_APP_SECRET" "$app_secret"
     
     # Vite environment variables for frontend
-    set_env_var "$env_file" "VITE_REVERB_APP_KEY" "\${REVERB_APP_KEY}"
-    set_env_var "$env_file" "VITE_REVERB_HOST" "\${REVERB_HOST}"
-    set_env_var "$env_file" "VITE_REVERB_PORT" "\${REVERB_PORT}"
-    set_env_var "$env_file" "VITE_REVERB_SCHEME" "\${REVERB_SCHEME}"
+    set_env_var "$env_file" "VITE_REVERB_APP_KEY" "$app_key"
+    set_env_var "$env_file" "VITE_REVERB_HOST" "\"$domain\""
+    set_env_var "$env_file" "VITE_REVERB_PORT" "443"
+    set_env_var "$env_file" "VITE_REVERB_SCHEME" "https"
     
     chown "$username:$username" "$env_file"
     echo "  → Reverb server .env configured"
-    
+
     echo ""
-    echo -e "${CYAN}Step 4/6: Setting production file limits...${NC}"
+    echo -e "${CYAN}Step 4/7: Running deployment...${NC}"
+    
+    if [ -f "$home_dir/deploy.sh" ]; then
+        local deploy_log="$home_dir/logs/deploy.log"
+        sudo -u "$username" "$home_dir/deploy.sh" 2>&1 | tee "$deploy_log"
+        local deploy_exit=${PIPESTATUS[0]}
+        
+        if [ $deploy_exit -eq 0 ]; then
+            echo "  → Deployment completed"
+        else
+            echo -e "  → ${YELLOW}Deployment had issues (exit code: $deploy_exit)${NC}"
+            echo -e "  ${YELLOW}Full log: cat $deploy_log${NC}"
+        fi
+        
+        chown "$username:$username" "$deploy_log" 2>/dev/null || true
+    else
+        echo -e "  → ${YELLOW}Deploy script not found${NC}"
+    fi
+
+    # Rebuild config cache to include new env vars
+    echo "  → Rebuilding config cache..."
+    sudo -u "$username" php "${home_dir}/current/artisan" config:cache
+
+    echo ""
+    echo -e "${CYAN}Step 5/7: Setting production file limits...${NC}"
     set_reverb_file_limits "$username"
     
     echo ""
-    echo -e "${CYAN}Step 5/6: Adding WebSocket proxy to nginx...${NC}"
+    echo -e "${CYAN}Step 6/7: Adding WebSocket proxy to nginx...${NC}"
     
-    # Domain + SSL are already set up by provision_create
+    # Domain + SSL are already set up by stack_create
     # Regenerate SSL config with websocket proxy included
     if ! add_websocket_proxy_to_nginx "$username" "$domain" "$php_version" 8080; then
         echo -e "${RED}Error: Failed to add WebSocket proxy to nginx${NC}"
@@ -312,7 +338,7 @@ reverb_setup() {
     echo "  → WebSocket proxy added to nginx config"
     
     echo ""
-    echo -e "${CYAN}Step 6/6: Creating supervisor config...${NC}"
+    echo -e "${CYAN}Step 7/7: Creating supervisor config...${NC}"
     
     # Validate artisan is ready before setting up supervisor
     echo "  → Validating artisan command..."
@@ -365,7 +391,7 @@ reverb_setup() {
     
     # Display summary
     echo ""
-    echo -e "${GREEN}${BOLD}Reverb setup complete!${NC}"
+    echo -e "${GREEN}${BOLD}Reverb creation complete!${NC}"
     echo "─────────────────────────────────────"
     echo -e "App:        ${CYAN}$username${NC}"
     echo -e "Domain:     ${CYAN}https://$domain${NC}"
@@ -383,7 +409,7 @@ reverb_show() {
     if ! reverb_is_configured; then
         echo -e "${YELLOW}Reverb is not configured${NC}"
         echo ""
-        echo "Run: cipi reverb setup"
+        echo "Run: cipi reverb create"
         return 1
     fi
     
@@ -409,7 +435,7 @@ reverb_start() {
     if ! reverb_is_configured; then
         echo -e "${RED}Error: Reverb is not configured${NC}"
         echo ""
-        echo "Run: cipi reverb setup"
+        echo "Run: cipi reverb create"
         exit 1
     fi
     
@@ -515,7 +541,7 @@ reverb_delete() {
     supervisor_reload_reverb
     
     echo -e "${CYAN}Deleting Reverb app...${NC}"
-    provision_delete "$username" --force
+    stack_delete "$username" --force
     
     echo -e "${CYAN}Removing reverb.json...${NC}"
     rm -f "${REVERB_FILE}"

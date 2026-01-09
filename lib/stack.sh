@@ -1,11 +1,11 @@
 #!/bin/bash
 
 #############################################
-# Provision Functions - Full App Setup
+# Stack Functions - Full App Creation
 #############################################
 
-# Provision create - full app setup (app + domain + database + .env + SSL + deploy)
-provision_create() {
+# Stack create - full app creation (app + domain + database + .env + SSL + deploy)
+stack_create() {
     local username=""
     local repository=""
     local branch=""
@@ -79,7 +79,7 @@ provision_create() {
     
     # Interactive prompts
     if [ $interactive = true ]; then
-        echo -e "${BOLD}Provision New App${NC}"
+        echo -e "${BOLD}Create New Stack${NC}"
         echo "─────────────────────────────────────"
         echo ""
         
@@ -192,7 +192,7 @@ provision_create() {
     if [ -z "$username" ] || [ -z "$repository" ]; then
         echo -e "${RED}Error: Username and repository are required${NC}"
         echo ""
-        echo "Usage: cipi provision create [options]"
+        echo "Usage: cipi stack create [options]"
         echo ""
         echo "Run without arguments for interactive mode, or provide options:"
         echo ""
@@ -222,7 +222,7 @@ provision_create() {
         exit 1
     fi
     
-    echo -e "${BOLD}Provision App${NC}"
+    echo -e "${BOLD}Create Stack${NC}"
     echo "─────────────────────────────────────"
     echo -e "User:       ${CYAN}$username${NC}"
     echo -e "Repository: ${CYAN}$repository${NC}"
@@ -352,7 +352,7 @@ provision_create() {
             else
                 echo -e "  → ${YELLOW}Deployment had issues (exit code: $deploy_exit)${NC}"
                 echo -e "  ${YELLOW}Full log: cat $deploy_log${NC}"
-                echo -e "  ${YELLOW}Re-run:   sudo -u $username $home_dir/deploy.sh${NC}"
+                echo -e "  ${YELLOW}Re-run:   cipi deploy $username${NC}"
             fi
             
             # Fix log ownership
@@ -365,7 +365,7 @@ provision_create() {
     
     # Display summary
     echo ""
-    echo -e "${GREEN}${BOLD}Provision completed successfully!${NC}"
+    echo -e "${GREEN}${BOLD}Stack created successfully!${NC}"
     echo "─────────────────────────────────────"
     echo ""
     echo -e "${BOLD}App Credentials${NC}"
@@ -402,21 +402,23 @@ provision_create() {
     echo -e "${BOLD}Next Steps${NC}"
     echo -e "• Edit .env: ${CYAN}cipi app env $username${NC}"
     echo -e "• View app: ${CYAN}cipi app show $username${NC}"
-    echo -e "• Deploy: ${CYAN}sudo -u $username $home_dir/deploy.sh${NC}"
+    echo -e "• Deploy: ${CYAN}cipi deploy $username${NC}"
     echo ""
 }
 
-# Provision delete - delete app and optionally database
-provision_delete() {
+# Stack delete - delete app and optionally database
+stack_delete() {
     local username=""
     local dbname=""
     local force=false
+    local skip_db_prompt=false
     
     # Parse arguments
     for arg in "$@"; do
         case $arg in
             --dbname=*)
                 dbname="${arg#*=}"
+                skip_db_prompt=true
                 ;;
             --force)
                 force=true
@@ -431,7 +433,7 @@ provision_delete() {
     
     if [ -z "$username" ]; then
         echo -e "${RED}Error: Username required${NC}"
-        echo "Usage: cipi provision delete <username> [--dbname=DBNAME] [--force]"
+        echo "Usage: cipi stack delete <username> [--dbname=DBNAME] [--force]"
         exit 1
     fi
     
@@ -451,8 +453,34 @@ provision_delete() {
     # Get domain info for display
     local domain=$(get_domain_by_app "$username")
     
+    # Prompt for database deletion if not specified and databases exist
+    if [ -z "$dbname" ] && [ "$skip_db_prompt" = false ] && [ "$force" = false ]; then
+        local databases=$(json_keys "${DATABASES_FILE}")
+        if [ -n "$databases" ]; then
+            echo -e "${BOLD}Database Deletion${NC}"
+            echo "─────────────────────────────────────"
+            echo ""
+            echo "Available databases:"
+            local db_array=()
+            local i=1
+            for db in $databases; do
+                echo -e "  $i. ${CYAN}$db${NC}"
+                db_array+=("$db")
+                ((i++))
+            done
+            echo ""
+            read -p "Delete a database? (Enter number, or press Enter to skip): " db_choice
+            
+            if [ -n "$db_choice" ] && [ "$db_choice" -gt 0 ] 2>/dev/null && [ "$db_choice" -le "${#db_array[@]}" ]; then
+                dbname="${db_array[$((db_choice-1))]}"
+                echo -e "Selected database: ${CYAN}$dbname${NC}"
+            fi
+            echo ""
+        fi
+    fi
+    
     # Show what will be deleted
-    echo -e "${BOLD}Provision Delete${NC}"
+    echo -e "${BOLD}Delete Stack${NC}"
     echo "─────────────────────────────────────"
     echo -e "The following resources will be deleted:"
     echo -e "  • App: ${CYAN}$username${NC}"
@@ -475,7 +503,7 @@ provision_delete() {
     fi
     
     echo ""
-    echo -e "${GREEN}${BOLD}Provision deleted successfully!${NC}"
+    echo -e "${GREEN}${BOLD}Stack deleted successfully!${NC}"
     echo ""
 }
 
@@ -509,6 +537,22 @@ update_env_file() {
         fi
     }
     
+    # Update app settings (always production)
+    set_env_var "$env_file" "APP_NAME" "$username"
+    set_env_var "$env_file" "APP_ENV" "production"
+    set_env_var "$env_file" "APP_DEBUG" "false"
+    echo "  → Set APP_NAME=$username, APP_ENV=production, APP_DEBUG=false"
+    
+    # Generate APP_KEY
+    local app_key="base64:$(openssl rand -base64 32)"
+    set_env_var "$env_file" "APP_KEY" "$app_key"
+    echo "  → Generated application key"
+    
+    if [ "$skip_domain" = false ] && [ -n "$domain" ]; then
+        set_env_var "$env_file" "APP_URL" "https://${domain}"
+        echo "  → Updated APP_URL in .env"
+    fi
+    
     # Update database settings
     if [ -n "$dbname" ] && [ -n "$db_username" ]; then
         set_env_var "$env_file" "DB_CONNECTION" "mysql"
@@ -522,17 +566,7 @@ update_env_file() {
         fi
         echo "  → Updated database settings in .env"
     fi
-    
-    # Update app settings (always production)
-    set_env_var "$env_file" "APP_ENV" "production"
-    set_env_var "$env_file" "APP_DEBUG" "false"
-    echo "  → Set APP_ENV=production, APP_DEBUG=false"
-    
-    if [ "$skip_domain" = false ] && [ -n "$domain" ]; then
-        set_env_var "$env_file" "APP_URL" "https://${domain}"
-        echo "  → Updated APP_URL in .env"
-    fi
-    
+
     # Configure Redis if available
     if systemctl is-active --quiet redis-server 2>/dev/null; then
         set_env_var "$env_file" "CACHE_DRIVER" "redis"
@@ -550,4 +584,3 @@ update_env_file() {
     chown "$username:$username" "$env_file"
     chmod 644 "$env_file"
 }
-

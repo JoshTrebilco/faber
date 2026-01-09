@@ -30,9 +30,9 @@ git_url_to_ssh() {
     fi
 }
 
-# Helper: Setup SSH config for git operations (known hosts + config file)
+# Helper: Create SSH config for git operations (known hosts + config file)
 # This should be called before cloning private repos
-git_setup_ssh_config() {
+git_create_ssh_config() {
     local username=$1
     local home_dir=$2
     
@@ -71,15 +71,15 @@ SSHCONFIG
     chmod 600 "$home_dir/.ssh/known_hosts" 2>/dev/null || true
 }
 
-# Helper: Configure Git to use SSH (full setup + remote URL conversion)
+# Helper: Configure Git to use SSH (full creation + remote URL conversion)
 # Call this after cloning to convert remote URL from HTTPS to SSH
 git_configure_ssh() {
     local username=$1
     local home_dir=$2
     local current_dir="$home_dir/current"
     
-    # Setup SSH config if not already done
-    git_setup_ssh_config "$username" "$home_dir"
+    # Create SSH config if not already done
+    git_create_ssh_config "$username" "$home_dir"
     
     # Get current remote URL and convert HTTPS to SSH if needed
     local current_url=$(sudo -u "$username" git -C "$current_dir" config --get remote.origin.url 2>/dev/null)
@@ -259,7 +259,7 @@ github_add_deploy_key() {
     local owner_repo=$(github_parse_repo "$repository")
     
     if [ -z "$owner_repo" ]; then
-        echo -e "  ${YELLOW}⚠ Not a GitHub repository, skipping deploy key setup${NC}"
+        echo -e "  ${YELLOW}⚠ Not a GitHub repository, skipping deploy key creation${NC}"
         return 1
     fi
     
@@ -271,9 +271,6 @@ github_add_deploy_key() {
         echo -e "  ${YELLOW}  Add the SSH key manually to your repository as a deploy key${NC}"
         return 1
     fi
-    
-    echo ""
-    echo -e "  ${CYAN}Private repository detected - adding deploy key via GitHub API...${NC}"
     
     # Get access token via Device Flow OAuth
     local access_token=$(github_device_flow_auth "repo")
@@ -318,6 +315,69 @@ github_add_deploy_key() {
     return 0
 }
 
+# Helper: Delete deploy key from GitHub repo
+# Usage: github_delete_deploy_key "repository" "key_title"
+# Returns: 0 on success, 1 on failure
+github_delete_deploy_key() {
+    local repository=$1
+    local key_title=$2
+    
+    local owner_repo=$(github_parse_repo "$repository")
+    
+    if [ -z "$owner_repo" ]; then
+        return 1
+    fi
+    
+    local github_client_id=$(get_config "github_client_id")
+    
+    if [ -z "$github_client_id" ]; then
+        return 1
+    fi
+    
+    # Get access token via Device Flow OAuth
+    local access_token=$(github_device_flow_auth "repo")
+    
+    if [ -z "$access_token" ]; then
+        echo -e "  ${RED}Error: Failed to authenticate with GitHub${NC}"
+        return 1
+    fi
+    
+    # List all deploy keys for the repo
+    local keys_response=$(curl -s -X GET \
+        "https://api.github.com/repos/$owner_repo/keys" \
+        -H "Authorization: Bearer $access_token" \
+        -H "Accept: application/vnd.github+json" \
+        -H "X-GitHub-Api-Version: 2022-11-28")
+    
+    # Find key ID by matching title
+    local key_id=$(echo "$keys_response" | jq -r ".[] | select(.title == \"$key_title\") | .id")
+    
+    if [ -z "$key_id" ] || [ "$key_id" = "null" ]; then
+        echo -e "  ${YELLOW}No deploy key found matching title: $key_title${NC}"
+        unset access_token
+        return 0
+    fi
+    
+    # Delete the deploy key
+    local delete_response=$(curl -s -X DELETE \
+        "https://api.github.com/repos/$owner_repo/keys/$key_id" \
+        -H "Authorization: Bearer $access_token" \
+        -H "Accept: application/vnd.github+json" \
+        -H "X-GitHub-Api-Version: 2022-11-28" \
+        -w "%{http_code}" \
+        -o /dev/null)
+    
+    unset access_token
+    
+    if [ "$delete_response" = "204" ]; then
+        echo -e "  ${GREEN}✓ Deploy key deleted successfully${NC}"
+        return 0
+    else
+        echo -e "  ${RED}Error: Failed to delete deploy key (HTTP $delete_response)${NC}"
+        return 1
+    fi
+}
+
 # Helper: Create GitHub webhook using an access token
 # Usage: github_create_webhook "owner/repo" "access_token" "webhook_url" "webhook_secret"
 # Returns: 0 on success, 1 on failure
@@ -345,7 +405,7 @@ github_create_webhook() {
             \"events\": [\"push\"],
             \"config\": {
                 \"url\": \"$webhook_url\",
-                \"content_type\": \"application/json\",
+                \"content_type\": \"json\",
                 \"secret\": \"$webhook_secret\",
                 \"insecure_ssl\": \"0\"
             }
@@ -378,11 +438,61 @@ github_create_webhook() {
     return 0
 }
 
-# Helper: Setup GitHub webhook for an app (full flow: auth + create)
-# This is a convenience function that handles the complete webhook setup
-# Usage: github_setup_webhook "repository_url" "webhook_url" "webhook_secret"
+# Helper: Delete GitHub webhook by finding it via URL
+# Usage: github_delete_webhook "owner/repo" "access_token" "webhook_url"
 # Returns: 0 on success, 1 on failure
-github_setup_webhook() {
+github_delete_webhook() {
+    local owner_repo=$1
+    local access_token=$2
+    local webhook_url=$3
+    
+    if [ -z "$owner_repo" ] || [ -z "$access_token" ] || [ -z "$webhook_url" ]; then
+        echo -e "${RED}Error: Missing required parameters for webhook deletion${NC}"
+        return 1
+    fi
+    
+    echo -e "${CYAN}Finding webhook on GitHub...${NC}"
+    
+    # List all webhooks for the repo
+    local hooks_response=$(curl -s -X GET \
+        "https://api.github.com/repos/$owner_repo/hooks" \
+        -H "Authorization: Bearer $access_token" \
+        -H "Accept: application/vnd.github+json" \
+        -H "X-GitHub-Api-Version: 2022-11-28")
+    
+    # Find webhook ID by matching URL
+    local webhook_id=$(echo "$hooks_response" | jq -r ".[] | select(.config.url == \"$webhook_url\") | .id")
+    
+    if [ -z "$webhook_id" ] || [ "$webhook_id" = "null" ]; then
+        echo -e "${YELLOW}No webhook found matching URL: $webhook_url${NC}"
+        return 0
+    fi
+    
+    echo -e "${CYAN}Deleting webhook ID: $webhook_id...${NC}"
+    
+    # Delete the webhook
+    local delete_response=$(curl -s -X DELETE \
+        "https://api.github.com/repos/$owner_repo/hooks/$webhook_id" \
+        -H "Authorization: Bearer $access_token" \
+        -H "Accept: application/vnd.github+json" \
+        -H "X-GitHub-Api-Version: 2022-11-28" \
+        -w "%{http_code}" \
+        -o /dev/null)
+    
+    if [ "$delete_response" = "204" ]; then
+        echo -e "${GREEN}✓ Webhook deleted successfully${NC}"
+        return 0
+    else
+        echo -e "${RED}Error: Failed to delete webhook (HTTP $delete_response)${NC}"
+        return 1
+    fi
+}
+
+# Helper: Create GitHub webhook for an app (full flow: auth + create)
+# This is a convenience function that handles the complete webhook creation
+# Usage: github_create_webhook "repository_url" "webhook_url" "webhook_secret"
+# Returns: 0 on success, 1 on failure
+github_create_webhook() {
     local repository=$1
     local webhook_url=$2
     local webhook_secret=$3
@@ -406,7 +516,7 @@ github_setup_webhook() {
     fi
     
     echo ""
-    echo -e "${CYAN}Setting up GitHub webhook for ${BOLD}$owner_repo${NC}"
+    echo -e "${CYAN}Creating GitHub webhook for ${BOLD}$owner_repo${NC}"
     
     # Get access token via Device Flow OAuth
     local access_token=$(github_device_flow_auth "admin:repo_hook")

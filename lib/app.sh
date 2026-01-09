@@ -108,7 +108,7 @@ app_create() {
     # Generate password
     local password=$(generate_password 24)
     
-    # Create system user (includes group setup and www-data access)
+    # Create system user (includes group creation and www-data access)
     echo "  → Creating system user..."
     if ! create_system_user "$username" "$password"; then
         echo -e "${RED}Error: Failed to create system user${NC}"
@@ -138,26 +138,19 @@ app_create() {
     chown "$username:$username" "$home_dir/gitkey.pub"
     chmod 644 "$home_dir/gitkey.pub"
     
-    # Setup SSH config and convert URL to SSH format
-    git_setup_ssh_config "$username" "$home_dir"
+    # Create SSH config and convert URL to SSH format
+    git_create_ssh_config "$username" "$home_dir"
     local clone_url=$(git_url_to_ssh "$repository")
     
-    # Check if GitHub private repo - if so, add deploy key before cloning
-    echo "  → Checking repository access..."
-    local repo_visibility=$(github_is_repo_private "$repository")
-    local deploy_key_failed=false
-    
-    if [ "$repo_visibility" = "private" ]; then
-        local public_key=$(cat "$home_dir/gitkey.pub")
-        if ! github_add_deploy_key "$repository" "cipi-$username" "$public_key"; then
-            deploy_key_failed=true
-            echo -e "  ${YELLOW}⚠ Could not add deploy key automatically${NC}"
-            echo -e "  ${YELLOW}  Please add this key as a deploy key to your repository:${NC}"
-            echo ""
-            cat "$home_dir/gitkey.pub"
-            echo ""
-            read -p "  Press Enter once you've added the key to continue, or Ctrl+C to abort..."
-        fi
+    echo "  → Adding deploy key for SSH access..."
+    local public_key=$(cat "$home_dir/gitkey.pub")
+    if ! github_add_deploy_key "$repository" "cipi-$username" "$public_key"; then
+        echo -e "  ${YELLOW}⚠ Could not add deploy key automatically${NC}"
+        echo -e "  ${YELLOW}  Please add this key as a deploy key to your repository:${NC}"
+        echo ""
+        cat "$home_dir/gitkey.pub"
+        echo ""
+        read -p "  Press Enter once you've added the key to continue, or Ctrl+C to abort..."
     fi
     
     # Clone repository into first release
@@ -165,7 +158,7 @@ app_create() {
     sudo -u "$username" git clone -b "$branch" --depth 1 "$clone_url" "$release_dir" 2>/dev/null
     if [ $? -ne 0 ]; then
         echo -e "${RED}Error: Failed to clone repository${NC}"
-        echo -e "${YELLOW}If this is a private repository, ensure the deploy key was added correctly.${NC}"
+        echo -e "${YELLOW}Ensure the deploy key was added correctly.${NC}"
         delete_system_user "$username"
         rm -rf "$home_dir"
         exit 1
@@ -228,19 +221,19 @@ app_create() {
     local webhook_secret=$(generate_webhook_secret)
     set_webhook "$username" "$webhook_secret"
     
-    # Setup GitHub webhook automatically if OAuth is configured
+    # Create GitHub webhook automatically if OAuth is configured
     local github_client_id=$(get_config "github_client_id")
-    local webhook_setup_failed=false
+    local webhook_create_failed=false
     if [ -n "$github_client_id" ]; then
-        echo "  → Setting up GitHub webhook..."
+        echo "  → Creating GitHub webhook..."
         # Run in subshell to catch exit without stopping app creation
         # Pass repository to avoid requiring app JSON to exist
-        (webhook_setup "$username" "$repository" 2>&1) || webhook_setup_failed=true
+        (webhook_create "$username" "$repository" 2>&1) || webhook_create_failed=true
     fi
-    
-    # Setup log rotation
-    echo "  → Setting up log rotation..."
-    setup_log_rotation "$username"
+
+    # Create log rotation
+    echo "  → Creating log rotation..."
+    create_log_rotation "$username"
     
     # Ensure web permissions are maintained
     find "$home_dir/current" -type d -exec chmod 750 {} \; 2>/dev/null || true
@@ -260,9 +253,9 @@ app_create() {
         configure_app_for_reverb "$username"
     fi
     
-    # Setup crontab for user
-    echo "  → Setting up crontab..."
-    setup_user_crontab "$username"
+    # Create crontab for user
+    echo "  → Creating crontab..."
+    create_user_crontab "$username"
     
     # Reload nginx to pick up new group membership
     echo "  → Reloading Nginx..."
@@ -306,8 +299,8 @@ EOF
         echo ""
     fi
     
-    # Show manual webhook instructions only if auto-setup failed or wasn't attempted
-    if [ "$webhook_setup_failed" = true ] || [ -z "$github_client_id" ]; then
+    # Show manual webhook instructions only if auto-create failed or wasn't attempted
+    if [ "$webhook_create_failed" = true ] || [ -z "$github_client_id" ]; then
         echo -e "${CYAN}${BOLD}GitHub Webhook (Auto-Deploy):${NC}"
         local webhook_domain=$(get_config "webhook_domain")
         if [ -n "$webhook_domain" ]; then
@@ -320,8 +313,8 @@ EOF
         echo -e "Secret:        ${CYAN}$webhook_secret${NC}"
         echo -e "Events:        ${CYAN}Just the push event${NC}"
         echo ""
-        if [ "$webhook_setup_failed" = true ]; then
-            echo -e "${YELLOW}Automatic webhook setup failed. Please configure manually:${NC}"
+        if [ "$webhook_create_failed" = true ]; then
+            echo -e "${YELLOW}Automatic webhook creation failed. Please configure manually:${NC}"
         fi
         echo -e "${CYAN}${BOLD}Next Steps:${NC}"
         echo -e "1. Configure GitHub webhook with the above settings"
@@ -762,6 +755,10 @@ app_delete() {
         done
     fi
     
+    # Delete user crontab
+    echo "  → Deleting crontab..."
+    crontab -r -u "$username" 2>/dev/null || true
+    
     # Delete system user and home directory
     echo "  → Deleting system user and files..."
     delete_system_user "$username"
@@ -770,7 +767,19 @@ app_delete() {
     echo "  → Deleting log rotation config..."
     rm -f "/etc/logrotate.d/cipi-$username"
     
-    # Delete webhook secret
+    # Delete GitHub webhook and deploy key if OAuth is configured
+    local github_client_id=$(get_config "github_client_id")
+    local repository=$(get_app_field "$username" "repository")
+    if [ -n "$github_client_id" ] && [ -n "$repository" ] && [ "$repository" != "null" ]; then
+        echo "  → Deleting GitHub webhook..."
+        # Run in subshell so failure doesn't stop deletion
+        (webhook_delete "$username" "$repository" 2>&1) || echo "    (GitHub webhook deletion failed or not found)"
+        
+        echo "  → Deleting GitHub deploy key..."
+        (github_delete_deploy_key "$repository" "cipi-$username" 2>&1) || echo "    (GitHub deploy key deletion failed or not found)"
+    fi
+    
+    # Delete local webhook secret
     echo "  → Deleting webhook secret..."
     delete_webhook "$username" 2>/dev/null || true
     
@@ -807,20 +816,23 @@ delete_domain_by_app() {
     fi
 }
 
-# Helper: Setup user crontab
-setup_user_crontab() {
+# Helper: Create user crontab
+create_user_crontab() {
     local username=$1
     local home_dir="/home/$username"
     
     # Create crontab for Laravel scheduler (if Laravel detected)
     # Uses current symlink for zero-downtime deployments
     if [ -f "$home_dir/current/artisan" ]; then
-        (crontab -u "$username" -l 2>/dev/null; echo "* * * * * cd $home_dir/current && php artisan schedule:run >> /dev/null 2>&1") | crontab -u "$username" -
+        # Only add if schedule:run entry doesn't already exist
+        if ! crontab -u "$username" -l 2>/dev/null | grep -q "schedule:run"; then
+            (crontab -u "$username" -l 2>/dev/null; echo "* * * * * cd $home_dir/current && php artisan schedule:run >> /dev/null 2>&1") | crontab -u "$username" -
+        fi
     fi
 }
 
-# Helper: Setup log rotation
-setup_log_rotation() {
+# Helper: Create log rotation
+create_log_rotation() {
     local username=$1
     local log_dir="/home/$username/logs"
     
@@ -1013,7 +1025,7 @@ app_releases() {
         local size=$(du -sh "$releases_dir/$release" 2>/dev/null | awk '{print $1}')
         
         if [ "$release" = "$current_release" ]; then
-            echo -e "${GREEN}$release${NC}   $status     $size"
+            printf "${GREEN}%-20s${NC} ${GREEN}%-12s${NC} %s\n" "$release" "active" "$size"
         else
             printf "%-20s %-12s %s\n" "$release" "$status" "$size"
         fi

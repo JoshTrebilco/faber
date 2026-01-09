@@ -23,6 +23,12 @@ cmd_status() {
     show_logo
     echo -e "${BOLD}SERVER STATUS${NC}"
     echo "─────────────────────────────────────"
+    local commit=$(get_version_commit)
+    if [ -n "$commit" ]; then
+        echo -e "CIPI:     ${CYAN}v${CIPI_VERSION} (${commit:0:7})${NC}"
+    else
+        echo -e "CIPI:     ${CYAN}v${CIPI_VERSION}${NC}"
+    fi
     echo -e "IP:       ${CYAN}$(get_server_ip)${NC}"
     echo -e "HOSTNAME: ${CYAN}$(get_hostname)${NC}"
     echo -e "CPU:      ${CYAN}$(get_cpu_usage)${NC}"
@@ -298,11 +304,11 @@ cmd_service() {
     service_restart "$@"
 }
 
-# Provision commands
-cmd_provision() {
+# Stack commands
+cmd_stack() {
     # Check for --help before subcommand
     if [ -z "$1" ] || check_help_requested "$@"; then
-        show_help_command "provision"
+        show_help_command "stack"
         exit 0
     fi
     
@@ -311,26 +317,26 @@ cmd_provision() {
     
     # Check for --help after subcommand
     if check_help_requested "$@"; then
-        show_help_subcommand "provision" "$subcmd"
+        show_help_subcommand "stack" "$subcmd"
         exit 0
     fi
     
     case $subcmd in
         create)
-            provision_create "$@"
+            stack_create "$@"
             ;;
         delete)
-            provision_delete "$@"
+            stack_delete "$@"
             ;;
         *)
-            echo -e "${RED}Unknown provision command: $subcmd${NC}"
+            echo -e "${RED}Unknown stack command: $subcmd${NC}"
             local suggestion=$(suggest_command "$subcmd")
             if [ -n "$suggestion" ]; then
                 echo -e "Did you mean: ${CYAN}$suggestion${NC}?"
                 echo ""
             fi
-            echo "Usage: cipi provision {create|delete}"
-            echo "Run 'cipi provision --help' for more information"
+            echo "Usage: cipi stack {create|delete}"
+            echo "Run 'cipi stack --help' for more information"
             exit 1
             ;;
     esac
@@ -354,14 +360,17 @@ cmd_webhook() {
     fi
     
     case $subcmd in
-        setup)
-            webhook_setup "$@"
+        create)
+            webhook_create "$@"
             ;;
         show)
             webhook_show "$@"
             ;;
         regenerate)
             webhook_regenerate_secret "$@"
+            ;;
+        delete)
+            webhook_delete "$@"
             ;;
         logs)
             webhook_logs "$@"
@@ -373,7 +382,7 @@ cmd_webhook() {
                 echo -e "Did you mean: ${CYAN}$suggestion${NC}?"
                 echo ""
             fi
-            echo "Usage: cipi webhook {setup|show|regenerate|logs} <username>"
+            echo "Usage: cipi webhook {create|show|regenerate|delete|logs} <username>"
             echo "Run 'cipi webhook --help' for more information"
             exit 1
             ;;
@@ -398,8 +407,8 @@ cmd_reverb() {
     fi
     
     case $subcmd in
-        setup)
-            reverb_setup "$@"
+        create)
+            reverb_create "$@"
             ;;
         show)
             reverb_show "$@"
@@ -423,11 +432,53 @@ cmd_reverb() {
                 echo -e "Did you mean: ${CYAN}$suggestion${NC}?"
                 echo ""
             fi
-            echo "Usage: cipi reverb {setup|show|start|stop|restart|delete}"
+            echo "Usage: cipi reverb {create|show|start|stop|restart|delete}"
             echo "Run 'cipi reverb --help' for more information"
             exit 1
             ;;
     esac
+}
+
+# Deploy command
+cmd_deploy() {
+    if check_help_requested "$@"; then
+        show_help_command "deploy"
+        exit 0
+    fi
+    
+    local username=$1
+    
+    if [ -z "$username" ]; then
+        echo -e "${RED}Error: Username required${NC}"
+        echo "Usage: cipi deploy <username>"
+        exit 1
+    fi
+    
+    check_app_exists "$username"
+    
+    local home_dir="/home/$username"
+    local deploy_script="$home_dir/deploy.sh"
+    
+    if [ ! -f "$deploy_script" ]; then
+        echo -e "${RED}Error: Deploy script not found: $deploy_script${NC}"
+        exit 1
+    fi
+    
+    echo -e "${CYAN}Triggering deployment for: $username${NC}"
+    echo ""
+    
+    # Run deployment script
+    sudo -u "$username" bash -c "cd $home_dir && ./deploy.sh"
+    local exit_code=$?
+    
+    if [ $exit_code -eq 0 ]; then
+        echo ""
+        echo -e "${GREEN}Deployment completed successfully${NC}"
+    else
+        echo ""
+        echo -e "${RED}Deployment failed (exit code: $exit_code)${NC}"
+        exit $exit_code
+    fi
 }
 
 # Update command

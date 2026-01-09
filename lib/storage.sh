@@ -16,13 +16,31 @@ REVERB_FILE="${STORAGE_DIR}/reverb.json"
 # Initialize storage
 init_storage() {
     mkdir -p "${STORAGE_DIR}"
-    chmod 700 "${STORAGE_DIR}"
+    # Allow www-data to traverse for webhook handler
+    chmod 751 "${STORAGE_DIR}" 
     
-    for file in "${APPS_FILE}" "${DOMAINS_FILE}" "${DATABASES_FILE}" "${CONFIG_FILE}" "${WEBHOOKS_FILE}" "${VERSION_FILE}"; do
+    # Files readable by www-data for webhook handler
+    for file in "${APPS_FILE}" "${DOMAINS_FILE}" "${VERSION_FILE}"; do
         if [ ! -f "$file" ]; then
             echo "{}" > "$file"
-            chmod 600 "$file"
         fi
+        chmod 640 "$file"
+        chown root:www-data "$file"
+    done
+    
+    # Webhooks file needs www-data read access for signature validation
+    if [ ! -f "${WEBHOOKS_FILE}" ]; then
+        echo "{}" > "${WEBHOOKS_FILE}"
+    fi
+    chmod 640 "${WEBHOOKS_FILE}"
+    chown root:www-data "${WEBHOOKS_FILE}"
+    
+    # Sensitive files - keep restricted (passwords, secrets)
+    for file in "${DATABASES_FILE}" "${CONFIG_FILE}"; do
+        if [ ! -f "$file" ]; then
+            echo "{}" > "$file"
+        fi
+        chmod 600 "$file"
     done
 }
 
@@ -104,7 +122,7 @@ set_config() {
 }
 
 #############################################
-# Provision Helpers
+# Stack Helpers
 #############################################
 
 # Generate unique username
@@ -119,9 +137,20 @@ generate_username() {
 }
 
 # Generate secure password
+# Only includes characters that are safe everywhere:
+# - Alphanumeric: A-Z, a-z, 0-9
+# - Safe special chars: @ % + - _ = (no shell/sed/env conflicts)
+#
+# Excluded problematic characters:
+# - # $ " ' ` \ (shell/env special chars)
+# - | / (sed delimiters)
+# - & ; < > (shell operators)
+# - ( ) [ ] { } (shell grouping/expansion)
+# - * ? ! ~ ^ : (shell wildcards/expansion)
+# - spaces and whitespace
 generate_password() {
     local length=${1:-24}
-    tr -dc 'A-Za-z0-9!@#$%^&*()_+{}|:<>?=' < /dev/urandom | head -c "$length"
+    tr -dc 'A-Za-z0-9@%+_=-' < /dev/urandom | head -c "$length"
 }
 
 #############################################

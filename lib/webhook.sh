@@ -4,7 +4,7 @@
 # Webhook Management Functions
 #############################################
 
-WEBHOOK_HANDLER="/opt/cipi/webhook.php"
+WEBHOOK_HANDLER="/opt/cipi/web/webhook.php"
 WEBHOOK_LOG="/var/log/cipi/webhook.log"
 
 # Generate webhook secret for an app
@@ -76,14 +76,74 @@ webhook_logs() {
     tail -f "$WEBHOOK_LOG"
 }
 
-# Automatically setup webhook on GitHub using Device Flow
-webhook_setup() {
+# Delete webhook from GitHub
+webhook_delete() {
     local username=$1
     local repository=$2  # Optional: can be passed to avoid requiring app JSON
     
     if [ -z "$username" ]; then
         echo -e "${RED}Error: Username required${NC}"
-        echo "Usage: cipi webhook setup <username> [repository]"
+        echo "Usage: cipi webhook delete <username> [repository]"
+        exit 1
+    fi
+    
+    # Only check app exists if repository not provided (standalone call)
+    if [ -z "$repository" ]; then
+        check_app_exists "$username"
+        repository=$(get_app_field "$username" "repository")
+        
+        if [ -z "$repository" ]; then
+            echo -e "${RED}Error: Repository not found for app '$username'${NC}"
+            exit 1
+        fi
+    fi
+    
+    # Get webhook configuration
+    local webhook_domain=$(get_config "webhook_domain")
+    
+    if [ -z "$webhook_domain" ]; then
+        echo -e "${RED}Error: Webhook domain not configured${NC}"
+        exit 1
+    fi
+    
+    local webhook_url="https://$webhook_domain/webhook/$username"
+    
+    # Extract owner/repo from repository URL
+    local owner_repo=$(github_parse_repo "$repository")
+    
+    if [ -z "$owner_repo" ]; then
+        echo -e "${RED}Error: Could not extract owner/repo from: $repository${NC}"
+        exit 1
+    fi
+    
+    echo -e "${CYAN}Deleting webhook for ${BOLD}$owner_repo${NC}"
+    echo ""
+    
+    # Get access token via device flow
+    local access_token=$(github_device_flow_auth "admin:repo_hook")
+    
+    if [ -z "$access_token" ]; then
+        echo -e "${RED}Error: Failed to get GitHub access token${NC}"
+        exit 1
+    fi
+    
+    # Delete the webhook from GitHub
+    github_delete_webhook "$owner_repo" "$access_token" "$webhook_url"
+    
+    # Delete the webhook secret from local storage
+    delete_webhook "$username"
+    
+    echo ""
+}
+
+# Automatically create webhook on GitHub using Device Flow
+webhook_create() {
+    local username=$1
+    local repository=$2  # Optional: can be passed to avoid requiring app JSON
+    
+    if [ -z "$username" ]; then
+        echo -e "${RED}Error: Username required${NC}"
+        echo "Usage: cipi webhook create <username> [repository]"
         exit 1
     fi
     
@@ -119,9 +179,9 @@ webhook_setup() {
     
     local webhook_url="https://$webhook_domain/webhook/$username"
     
-    # Use shared function from git.sh to setup the webhook
-    if ! github_setup_webhook "$repository" "$webhook_url" "$webhook_secret"; then
-        echo "Please try again: ${CYAN}cipi webhook setup $username${NC}"
+    # Use shared function from git.sh to create the webhook
+    if ! github_create_webhook "$repository" "$webhook_url" "$webhook_secret"; then
+        echo "Please try again: ${CYAN}cipi webhook create $username${NC}"
         exit 1
     fi
     

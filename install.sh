@@ -30,7 +30,8 @@ update_config_json() {
     
     # Ensure directory exists
     mkdir -p /etc/cipi
-    chmod 700 /etc/cipi
+    # 751 so www-data can traverse to read apps.json, but can't list contents
+    chmod 751 /etc/cipi
     
     if [ -f "$config_file" ]; then
         # Update existing config
@@ -668,7 +669,8 @@ install_cipi() {
     # Create directories
     mkdir -p /opt/cipi/lib
     mkdir -p /etc/cipi
-    chmod 700 /etc/cipi
+    # 751 so www-data can traverse to read apps.json, but can't list contents
+    chmod 751 /etc/cipi
     
     # Download Cipi
     cd /tmp
@@ -682,21 +684,33 @@ install_cipi() {
     # Copy files
     cp cipi-install/cipi /usr/local/bin/cipi
     cp -r cipi-install/lib/* /opt/cipi/lib/
-    
+
+    # Copy web files (webhook.php, etc.)
+    mkdir -p /opt/cipi/web
+    cp -r cipi-install/web/* /opt/cipi/web/
+
     # Set secure permissions (only root can read and execute)
     chmod 700 /usr/local/bin/cipi
     chmod 700 /opt/cipi/lib/*.sh
     chmod 755 /opt/cipi/lib/release.sh  # Must be readable by app users for deploy.sh
-    chmod 711 /opt/cipi /opt/cipi/lib   # Traversable but not listable
+    chmod 644 /opt/cipi/web/*.php       # Readable by www-data for nginx/php-fpm
+    chmod 711 /opt/cipi /opt/cipi/lib /opt/cipi/web  # Traversable but not listable
     chown -R root:root /usr/local/bin/cipi /opt/cipi
     
     # Initialize storage
-    for file in apps.json domains.json databases.json; do
+    # apps.json and domains.json are 644 (readable by www-data for webhooks)
+    # databases.json stays 600 (contains sensitive info)
+    for file in apps.json domains.json; do
         if [ ! -f "/etc/cipi/$file" ]; then
             echo "{}" > "/etc/cipi/$file"
-            chmod 600 "/etc/cipi/$file"
+            chmod 644 "/etc/cipi/$file"
         fi
     done
+    
+    if [ ! -f "/etc/cipi/databases.json" ]; then
+        echo "{}" > "/etc/cipi/databases.json"
+        chmod 600 "/etc/cipi/databases.json"
+    fi
     
     # Create version file with commit hash
     cat > /etc/cipi/version.json <<EOF
@@ -782,248 +796,22 @@ install_webhook() {
     echo ""
     echo -e "${YELLOW}Press Enter when DNS is ready...${NC}"
     read -p "" < /dev/tty
-    
-    # Create the PHP webhook handler
-    cat > /opt/cipi/webhook.php <<'WEBHOOKPHP'
-<?php
-/**
- * Cipi Centralized Webhook Handler
- * 
- * Receives GitHub webhooks, validates signatures using HMAC-SHA256,
- * and triggers deployments for the specified app.
- */
 
-// Configuration
-define('WEBHOOKS_FILE', '/etc/cipi/webhooks.json');
-define('APPS_FILE', '/etc/cipi/apps.json');
-define('LOG_FILE', '/var/log/cipi/webhook.log');
+    # webhook.php is installed by install_cipi() from the web/ directory
 
-// Ensure log directory exists
-if (!is_dir(dirname(LOG_FILE))) {
-    mkdir(dirname(LOG_FILE), 0755, true);
-}
-
-/**
- * Log a message to the webhook log file
- */
-function webhook_log($message, $level = 'INFO') {
-    $timestamp = date('Y-m-d H:i:s');
-    $log_entry = "[$timestamp] [$level] $message\n";
-    file_put_contents(LOG_FILE, $log_entry, FILE_APPEND | LOCK_EX);
-}
-
-/**
- * Send JSON response and exit
- */
-function respond($status_code, $message, $details = []) {
-    http_response_code($status_code);
-    header('Content-Type: application/json');
-    echo json_encode(array_merge(['status' => $status_code >= 400 ? 'error' : 'success', 'message' => $message], $details));
-    exit;
-}
-
-/**
- * Validate GitHub webhook signature using HMAC-SHA256
- */
-function validate_github_signature($payload, $secret, $signature_header) {
-    if (empty($signature_header)) {
-        return false;
-    }
-    
-    // GitHub sends signature as "sha256=<hash>"
-    if (strpos($signature_header, 'sha256=') !== 0) {
-        return false;
-    }
-    
-    $expected_signature = 'sha256=' . hash_hmac('sha256', $payload, $secret);
-    
-    // Use timing-safe comparison to prevent timing attacks
-    return hash_equals($expected_signature, $signature_header);
-}
-
-/**
- * Get the username from the request URI
- */
-function get_username_from_uri() {
-    $uri = $_SERVER['REQUEST_URI'] ?? '';
-    
-    // Remove query string if present
-    $uri = strtok($uri, '?');
-    
-    // Match /webhook/<username>
-    if (preg_match('#^/webhook/([a-zA-Z0-9_-]+)/?$#', $uri, $matches)) {
-        return $matches[1];
-    }
-    
-    return null;
-}
-
-/**
- * Check if app exists
- */
-function app_exists($username) {
-    if (!file_exists(APPS_FILE)) {
-        return false;
-    }
-    
-    $apps = json_decode(file_get_contents(APPS_FILE), true);
-    return isset($apps[$username]);
-}
-
-/**
- * Get webhook secret for an app
- */
-function get_webhook_secret($username) {
-    if (!file_exists(WEBHOOKS_FILE)) {
-        return null;
-    }
-    
-    $webhooks = json_decode(file_get_contents(WEBHOOKS_FILE), true);
-    return $webhooks[$username]['secret'] ?? null;
-}
-
-/**
- * Trigger deployment for an app
- */
-function trigger_deployment($username) {
-    $home_dir = "/home/$username";
-    $deploy_script = "$home_dir/deploy.sh";
-    
-    if (!file_exists($deploy_script)) {
-        webhook_log("Deploy script not found: $deploy_script", 'ERROR');
-        return ['success' => false, 'error' => 'Deploy script not found'];
-    }
-    
-    // Run deployment as the app user
-    // Use sudo to switch to the app user and run the deploy script
-    $command = sprintf(
-        'sudo -u %s bash -c "cd %s && ./deploy.sh" 2>&1',
-        escapeshellarg($username),
-        escapeshellarg($home_dir)
-    );
-    
-    $output = [];
-    $return_code = 0;
-    exec($command, $output, $return_code);
-    
-    $output_str = implode("\n", $output);
-    
-    if ($return_code === 0) {
-        webhook_log("Deployment successful for $username", 'INFO');
-        return ['success' => true, 'output' => $output_str];
-    } else {
-        webhook_log("Deployment failed for $username: $output_str", 'ERROR');
-        return ['success' => false, 'error' => 'Deployment failed', 'output' => $output_str];
-    }
-}
-
-// ============================================
-// Main Request Handler
-// ============================================
-
-// Only accept POST requests
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    webhook_log("Invalid request method: " . $_SERVER['REQUEST_METHOD'], 'WARN');
-    respond(405, 'Method not allowed. Use POST.');
-}
-
-// Validate Content-Type header
-$content_type = $_SERVER['CONTENT_TYPE'] ?? $_SERVER['HTTP_CONTENT_TYPE'] ?? '';
-if (stripos($content_type, 'application/json') === false) {
-    webhook_log("Invalid Content-Type: $content_type", 'WARN');
-    respond(400, 'Content-Type must be application/json');
-}
-
-// Get username from URL
-$username = get_username_from_uri();
-if (!$username) {
-    webhook_log("Invalid webhook URL: " . ($_SERVER['REQUEST_URI'] ?? 'unknown'), 'WARN');
-    respond(400, 'Invalid webhook URL. Expected /webhook/<username>');
-}
-
-webhook_log("Webhook received for: $username");
-
-// Check if app exists
-if (!app_exists($username)) {
-    webhook_log("App not found: $username", 'WARN');
-    respond(404, 'App not found');
-}
-
-// Get webhook secret
-$secret = get_webhook_secret($username);
-if (!$secret) {
-    webhook_log("No webhook secret configured for: $username", 'WARN');
-    respond(401, 'Webhook not configured for this app');
-}
-
-// Get request payload
-$payload = file_get_contents('php://input');
-if (empty($payload)) {
-    webhook_log("Empty payload received for: $username", 'WARN');
-    respond(400, 'Empty payload');
-}
-
-// Check payload size limit (10MB)
-if (strlen($payload) > 10485760) {
-    webhook_log("Payload too large for: $username (size: " . strlen($payload) . ")", 'WARN');
-    respond(413, 'Payload too large. Maximum size is 10MB.');
-}
-
-// Get GitHub signature header
-$signature = $_SERVER['HTTP_X_HUB_SIGNATURE_256'] ?? '';
-
-// Validate signature
-if (!validate_github_signature($payload, $secret, $signature)) {
-    webhook_log("Invalid signature for: $username", 'WARN');
-    respond(401, 'Invalid signature');
-}
-
-webhook_log("Signature validated for: $username");
-
-// Parse payload to get event details
-$data = json_decode($payload, true);
-if (json_last_error() !== JSON_ERROR_NONE) {
-    webhook_log("Invalid JSON payload for: $username - " . json_last_error_msg(), 'WARN');
-    respond(400, 'Invalid JSON payload: ' . json_last_error_msg());
-}
-
-$ref = $data['ref'] ?? 'unknown';
-$pusher = $data['pusher']['name'] ?? 'unknown';
-$repo = $data['repository']['full_name'] ?? 'unknown';
-
-webhook_log("Push event: $repo ($ref) by $pusher");
-
-// Trigger deployment
-$result = trigger_deployment($username);
-
-if ($result['success']) {
-    respond(200, 'Deployment triggered successfully', [
-        'app' => $username,
-        'ref' => $ref,
-        'repository' => $repo
-    ]);
-} else {
-    respond(500, 'Deployment failed', [
-        'app' => $username,
-        'error' => $result['error'] ?? 'Unknown error'
-    ]);
-}
-WEBHOOKPHP
-    
-    # Set permissions - readable by www-data for nginx/php-fpm
-    chmod 644 /opt/cipi/webhook.php
-    chown root:root /opt/cipi/webhook.php
-    
     # Initialize webhooks storage
     if [ ! -f "/etc/cipi/webhooks.json" ]; then
         echo "{}" > /etc/cipi/webhooks.json
-        chmod 600 /etc/cipi/webhooks.json
-        chown root:root /etc/cipi/webhooks.json
+        # 640 with www-data group so PHP can read secrets
+        chmod 640 /etc/cipi/webhooks.json
+        chown root:www-data /etc/cipi/webhooks.json
     fi
     
-    # Create webhook log directory
+    # Create webhook log directory and file with proper permissions
     mkdir -p /var/log/cipi
-    chmod 755 /var/log/cipi
+    touch /var/log/cipi/webhook.log
+    chown www-data:www-data /var/log/cipi/webhook.log
+    chmod 644 /var/log/cipi/webhook.log
     
     # Allow www-data to run bash as any user (needed for deploy.sh execution)
     echo 'www-data ALL=(ALL) NOPASSWD: /usr/bin/bash' > /etc/sudoers.d/cipi-webhook
@@ -1115,7 +903,7 @@ server {
         
         # Pass to PHP-FPM
         fastcgi_pass unix:/var/run/php/php8.4-fpm.sock;
-        fastcgi_param SCRIPT_FILENAME /opt/cipi/webhook.php;
+        fastcgi_param SCRIPT_FILENAME /opt/cipi/web/webhook.php;
         fastcgi_param REQUEST_URI \$request_uri;
         include fastcgi_params;
     }
