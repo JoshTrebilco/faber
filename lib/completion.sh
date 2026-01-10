@@ -111,6 +111,7 @@ _faber() {
 }
 
 complete -F _faber faber
+complete -F _faber fab
 EOF
 }
 

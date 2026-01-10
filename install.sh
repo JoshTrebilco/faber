@@ -685,6 +685,7 @@ install_faber() {
     
     # Copy files
     cp faber-install/faber /usr/local/bin/faber
+    ln -sf /usr/local/bin/faber /usr/local/bin/fab
     cp -r faber-install/lib/* /opt/faber/lib/
 
     # Copy web files (webhook.php, etc.)

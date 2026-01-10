@@ -194,12 +194,15 @@ show_help_compact() {
     echo -e "Run ${CYAN}faber <command> --help${NC} for command details"
     echo -e "Run ${CYAN}faber help -i${NC} for interactive mode"
     echo ""
+    echo -e "${YELLOW}Tip:${NC} You can use ${CYAN}fab${NC} as a shorthand for ${CYAN}faber${NC}"
+    echo ""
 }
 
 # Full help screen
 show_help_full() {
     show_logo
-    echo -e "${BOLD}Usage:${NC} faber [command] [options]"
+    echo -e "${BOLD}Usage:${NC} ${CYAN}faber [command] [options]${NC}"
+    echo -e "${BOLD}   or:${NC} ${CYAN}fab   [command] [options]${NC}"
     echo ""
     echo -e "${BOLD}Commands:${NC}"
     echo ""

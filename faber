@@ -13,6 +13,7 @@ set -e
 FABER_LIB_DIR="/opt/faber/lib"
 FABER_DATA_DIR="/etc/faber"
 FABER_BIN="/usr/local/bin/faber"
+FABER_BIN_ALIAS="/usr/local/bin/fab"
 FABER_VERSION="1.0.0"
 
 # Colors

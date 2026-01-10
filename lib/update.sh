@@ -151,6 +151,8 @@ update_faber() {
         cp "${tmp_dir}/${extract_dir}/faber" "${FABER_BIN}"
         chmod 700 "${FABER_BIN}"
         chown root:root "${FABER_BIN}"
+        # Create fab alias symlink
+        ln -sf "${FABER_BIN}" "${FABER_BIN_ALIAS}"
     fi
     
     # Copy library files

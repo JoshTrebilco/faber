@@ -35,7 +35,7 @@ Faber is a **terminal-driven control panel** designed exclusively for **Laravel 
 - 🛡️ Built-in fail2ban + ClamAV antivirus protection
 - 🔐 Secure password management (never stored in plain text)
 
-**No web interface needed** - everything is managed via SSH with the `faber` command!
+**No web interface needed** - everything is managed via SSH with the `faber` command! (or `fab` for short)
 
 ---
 
@@ -152,6 +152,8 @@ wget -O - https://raw.githubusercontent.com/JoshTrebilco/faber/refs/heads/latest
 ---
 
 ## 📚 Usage
+
+> **Tip:** You can use `fab` as a shorthand for `faber` in all commands below.
 
 ### Quick Start Example
 
