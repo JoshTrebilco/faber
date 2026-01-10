@@ -138,10 +138,6 @@ We are committed to providing a welcoming and inspiring community for everyone.
 
 Violations may result in temporary or permanent ban from the project.
 
-## Questions?
-
-Feel free to open an issue or contact hello@faber.sh
-
 ## License
 
 By contributing, you agree that your contributions will be licensed under the MIT License.
