@@ -249,38 +249,14 @@ github_device_flow_auth() {
     echo "$access_token"
 }
 
-# Helper: Add deploy key to GitHub repo using Device Flow OAuth
-# This prompts the user to authorize via browser, then adds the key
+# Helper: Add deploy key to GitHub repo
+# Usage: github_add_deploy_key "access_token" "owner/repo" "key_title" "public_key"
 github_add_deploy_key() {
-    local repository=$1
-    local key_title=$2
-    local public_key=$3
+    local access_token=$1
+    local owner_repo=$2
+    local key_title=$3
+    local public_key=$4
     
-    local owner_repo=$(github_parse_repo "$repository")
-    
-    if [ -z "$owner_repo" ]; then
-        echo -e "  ${YELLOW}⚠ Not a GitHub repository, skipping deploy key creation${NC}"
-        return 1
-    fi
-    
-    # Get GitHub Client ID from config
-    local github_client_id=$(get_config "github_client_id")
-    
-    if [ -z "$github_client_id" ]; then
-        echo -e "  ${YELLOW}⚠ GitHub OAuth not configured, cannot add deploy key automatically${NC}"
-        echo -e "  ${YELLOW}  Add the SSH key manually to your repository as a deploy key${NC}"
-        return 1
-    fi
-    
-    # Get access token via Device Flow OAuth
-    local access_token=$(github_device_flow_auth "repo")
-    
-    if [ -z "$access_token" ]; then
-        echo -e "  ${RED}Error: Failed to authenticate with GitHub${NC}"
-        return 1
-    fi
-    
-    # Add deploy key
     echo -e "  ${CYAN}Adding deploy key to $owner_repo...${NC}"
     
     local key_response=$(curl -s -X POST \
@@ -293,9 +269,6 @@ github_add_deploy_key() {
             \"key\": \"$public_key\",
             \"read_only\": true
         }")
-    
-    # Clear token immediately
-    unset access_token
     
     local key_id=$(echo "$key_response" | jq -r '.id // empty')
     local error_msg=$(echo "$key_response" | jq -r '.message // empty')
@@ -316,31 +289,12 @@ github_add_deploy_key() {
 }
 
 # Helper: Delete deploy key from GitHub repo
-# Usage: github_delete_deploy_key "repository" "key_title"
+# Usage: github_delete_deploy_key "access_token" "owner/repo" "key_title"
 # Returns: 0 on success, 1 on failure
 github_delete_deploy_key() {
-    local repository=$1
-    local key_title=$2
-    
-    local owner_repo=$(github_parse_repo "$repository")
-    
-    if [ -z "$owner_repo" ]; then
-        return 1
-    fi
-    
-    local github_client_id=$(get_config "github_client_id")
-    
-    if [ -z "$github_client_id" ]; then
-        return 1
-    fi
-    
-    # Get access token via Device Flow OAuth
-    local access_token=$(github_device_flow_auth "repo")
-    
-    if [ -z "$access_token" ]; then
-        echo -e "  ${RED}Error: Failed to authenticate with GitHub${NC}"
-        return 1
-    fi
+    local access_token=$1
+    local owner_repo=$2
+    local key_title=$3
     
     # List all deploy keys for the repo
     local keys_response=$(curl -s -X GET \
@@ -354,7 +308,6 @@ github_delete_deploy_key() {
     
     if [ -z "$key_id" ] || [ "$key_id" = "null" ]; then
         echo -e "  ${YELLOW}No deploy key found matching title: $key_title${NC}"
-        unset access_token
         return 0
     fi
     
@@ -367,8 +320,6 @@ github_delete_deploy_key() {
         -w "%{http_code}" \
         -o /dev/null)
     
-    unset access_token
-    
     if [ "$delete_response" = "204" ]; then
         echo -e "  ${GREEN}✓ Deploy key deleted successfully${NC}"
         return 0
@@ -378,16 +329,16 @@ github_delete_deploy_key() {
     fi
 }
 
-# Helper: Create GitHub webhook using an access token
-# Usage: github_create_webhook "owner/repo" "access_token" "webhook_url" "webhook_secret"
+# Helper: Create GitHub webhook
+# Usage: github_create_webhook "access_token" "owner/repo" "webhook_url" "webhook_secret"
 # Returns: 0 on success, 1 on failure
 github_create_webhook() {
-    local owner_repo=$1
-    local access_token=$2
+    local access_token=$1
+    local owner_repo=$2
     local webhook_url=$3
     local webhook_secret=$4
     
-    if [ -z "$owner_repo" ] || [ -z "$access_token" ] || [ -z "$webhook_url" ] || [ -z "$webhook_secret" ]; then
+    if [ -z "$access_token" ] || [ -z "$owner_repo" ] || [ -z "$webhook_url" ] || [ -z "$webhook_secret" ]; then
         echo -e "${RED}Error: Missing required parameters for webhook creation${NC}"
         return 1
     fi
@@ -439,14 +390,14 @@ github_create_webhook() {
 }
 
 # Helper: Delete GitHub webhook by finding it via URL
-# Usage: github_delete_webhook "owner/repo" "access_token" "webhook_url"
+# Usage: github_delete_webhook "access_token" "owner/repo" "webhook_url"
 # Returns: 0 on success, 1 on failure
 github_delete_webhook() {
-    local owner_repo=$1
-    local access_token=$2
+    local access_token=$1
+    local owner_repo=$2
     local webhook_url=$3
     
-    if [ -z "$owner_repo" ] || [ -z "$access_token" ] || [ -z "$webhook_url" ]; then
+    if [ -z "$access_token" ] || [ -z "$owner_repo" ] || [ -z "$webhook_url" ]; then
         echo -e "${RED}Error: Missing required parameters for webhook deletion${NC}"
         return 1
     fi
@@ -487,52 +438,3 @@ github_delete_webhook() {
         return 1
     fi
 }
-
-# Helper: Create GitHub webhook for an app (full flow: auth + create)
-# This is a convenience function that handles the complete webhook creation
-# Usage: github_create_webhook "repository_url" "webhook_url" "webhook_secret"
-# Returns: 0 on success, 1 on failure
-github_create_webhook() {
-    local repository=$1
-    local webhook_url=$2
-    local webhook_secret=$3
-    
-    local owner_repo=$(github_parse_repo "$repository")
-    
-    if [ -z "$owner_repo" ]; then
-        echo -e "${RED}Error: Could not parse GitHub repository from: $repository${NC}"
-        echo "Repository must be a GitHub URL (e.g., https://github.com/owner/repo or git@github.com:owner/repo.git)"
-        return 1
-    fi
-    
-    # Check if GitHub OAuth is configured
-    local github_client_id=$(get_config "github_client_id")
-    
-    if [ -z "$github_client_id" ]; then
-        echo -e "${RED}Error: GitHub OAuth Client ID not configured${NC}"
-        echo "Run the installer again or set it manually:"
-        echo "  ${CYAN}faber config set github_client_id <your_client_id>${NC}"
-        return 1
-    fi
-    
-    echo ""
-    echo -e "${CYAN}Creating GitHub webhook for ${BOLD}$owner_repo${NC}"
-    
-    # Get access token via Device Flow OAuth
-    local access_token=$(github_device_flow_auth "admin:repo_hook")
-    
-    if [ -z "$access_token" ]; then
-        echo -e "${RED}Error: Failed to authenticate with GitHub${NC}"
-        return 1
-    fi
-    
-    # Create the webhook
-    github_create_webhook "$owner_repo" "$access_token" "$webhook_url" "$webhook_secret"
-    local result=$?
-    
-    # Clear token
-    unset access_token
-    
-    return $result
-}
-

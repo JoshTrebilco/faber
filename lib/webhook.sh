@@ -128,7 +128,10 @@ webhook_delete() {
     fi
     
     # Delete the webhook from GitHub
-    github_delete_webhook "$owner_repo" "$access_token" "$webhook_url"
+    github_delete_webhook "$access_token" "$owner_repo" "$webhook_url"
+    
+    # Clear token
+    unset access_token
     
     # Delete the webhook secret from local storage
     delete_webhook "$username"
@@ -179,11 +182,45 @@ webhook_create() {
     
     local webhook_url="https://$webhook_domain/webhook/$username"
     
-    # Use shared function from git.sh to create the webhook
-    if ! github_create_webhook "$repository" "$webhook_url" "$webhook_secret"; then
-        echo "Please try again: ${CYAN}faber webhook create $username${NC}"
+    # Parse repository URL
+    local owner_repo=$(github_parse_repo "$repository")
+    
+    if [ -z "$owner_repo" ]; then
+        echo -e "${RED}Error: Could not parse GitHub repository from: $repository${NC}"
+        echo "Repository must be a GitHub URL (e.g., https://github.com/owner/repo or git@github.com:owner/repo.git)"
         exit 1
     fi
+    
+    # Check if GitHub OAuth is configured
+    local github_client_id=$(get_config "github_client_id")
+    
+    if [ -z "$github_client_id" ]; then
+        echo -e "${RED}Error: GitHub OAuth Client ID not configured${NC}"
+        echo "Run the installer again or set it manually:"
+        echo "  ${CYAN}faber config set github_client_id <your_client_id>${NC}"
+        exit 1
+    fi
+    
+    echo ""
+    echo -e "${CYAN}Creating GitHub webhook for ${BOLD}$owner_repo${NC}"
+    
+    # Get access token via Device Flow OAuth
+    local access_token=$(github_device_flow_auth "admin:repo_hook")
+    
+    if [ -z "$access_token" ]; then
+        echo -e "${RED}Error: Failed to authenticate with GitHub${NC}"
+        exit 1
+    fi
+    
+    # Create the webhook
+    if ! github_create_webhook "$access_token" "$owner_repo" "$webhook_url" "$webhook_secret"; then
+        echo "Please try again: ${CYAN}faber webhook create $username${NC}"
+        unset access_token
+        exit 1
+    fi
+    
+    # Clear token
+    unset access_token
     
     echo ""
 }

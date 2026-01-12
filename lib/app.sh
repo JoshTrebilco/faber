@@ -142,10 +142,38 @@ app_create() {
     git_create_ssh_config "$username" "$home_dir"
     local clone_url=$(git_url_to_ssh "$repository")
     
-    echo "  → Adding deploy key for SSH access..."
-    local public_key=$(cat "$home_dir/gitkey.pub")
-    if ! github_add_deploy_key "$repository" "faber-$username" "$public_key"; then
-        echo -e "  ${YELLOW}⚠ Could not add deploy key automatically${NC}"
+    # Parse repository and check if it's GitHub
+    local owner_repo=$(github_parse_repo "$repository")
+    local github_access_token=""
+    local github_setup_failed=false
+    
+    if [ -n "$owner_repo" ]; then
+        # It's a GitHub repo - check if OAuth is configured
+        local github_client_id=$(get_config "github_client_id")
+        
+        if [ -n "$github_client_id" ]; then
+            echo "  → Setting up GitHub repository access..."
+            
+            # Get token once with combined scopes for both deploy key and webhook
+            github_access_token=$(github_device_flow_auth "repo admin:repo_hook")
+            
+            if [ -n "$github_access_token" ]; then
+                # Add deploy key using the token
+                local public_key=$(cat "$home_dir/gitkey.pub")
+                if ! github_add_deploy_key "$github_access_token" "$owner_repo" "faber-$username" "$public_key"; then
+                    echo -e "  ${YELLOW}⚠ Could not add deploy key automatically${NC}"
+                    github_setup_failed=true
+                fi
+            else
+                echo -e "  ${RED}Error: Failed to authenticate with GitHub${NC}"
+                github_setup_failed=true
+            fi
+        fi
+    fi
+    
+    # If GitHub setup failed or not a GitHub repo, show manual instructions
+    if [ "$github_setup_failed" = true ] || [ -z "$owner_repo" ]; then
+        echo "  → Adding deploy key for SSH access..."
         echo -e "  ${YELLOW}  Please add this key as a deploy key to your repository:${NC}"
         echo ""
         cat "$home_dir/gitkey.pub"
@@ -221,14 +249,23 @@ app_create() {
     local webhook_secret=$(generate_webhook_secret)
     set_webhook "$username" "$webhook_secret"
     
-    # Create GitHub webhook automatically if OAuth is configured
-    local github_client_id=$(get_config "github_client_id")
+    # Create GitHub webhook using the same token from earlier
     local webhook_create_failed=false
-    if [ -n "$github_client_id" ]; then
-        echo "  → Creating GitHub webhook..."
-        # Run in subshell to catch exit without stopping app creation
-        # Pass repository to avoid requiring app JSON to exist
-        (webhook_create "$username" "$repository" 2>&1) || webhook_create_failed=true
+    if [ -n "$github_access_token" ] && [ -n "$owner_repo" ]; then
+        local webhook_domain=$(get_config "webhook_domain")
+        if [ -n "$webhook_domain" ]; then
+            echo "  → Creating GitHub webhook..."
+            local webhook_url="https://$webhook_domain/webhook/$username"
+            
+            if ! github_create_webhook "$github_access_token" "$owner_repo" "$webhook_url" "$webhook_secret"; then
+                webhook_create_failed=true
+            fi
+        fi
+    fi
+    
+    # Clear the token after use
+    if [ -n "$github_access_token" ]; then
+        unset github_access_token
     fi
 
     # Create log rotation
@@ -770,13 +807,33 @@ app_delete() {
     # Delete GitHub webhook and deploy key if OAuth is configured
     local github_client_id=$(get_config "github_client_id")
     local repository=$(get_app_field "$username" "repository")
+    
     if [ -n "$github_client_id" ] && [ -n "$repository" ] && [ "$repository" != "null" ]; then
-        echo "  → Deleting GitHub webhook..."
-        # Run in subshell so failure doesn't stop deletion
-        (webhook_delete "$username" "$repository" 2>&1) || echo "    (GitHub webhook deletion failed or not found)"
+        local owner_repo=$(github_parse_repo "$repository")
         
-        echo "  → Deleting GitHub deploy key..."
-        (github_delete_deploy_key "$repository" "faber-$username" 2>&1) || echo "    (GitHub deploy key deletion failed or not found)"
+        if [ -n "$owner_repo" ]; then
+            echo "  → Removing GitHub repository access..."
+            
+            # Get token once with combined scopes for both webhook and deploy key deletion
+            local access_token=$(github_device_flow_auth "repo admin:repo_hook")
+            
+            if [ -n "$access_token" ]; then
+                # Delete webhook
+                local webhook_domain=$(get_config "webhook_domain")
+                if [ -n "$webhook_domain" ]; then
+                    local webhook_url="https://$webhook_domain/webhook/$username"
+                    github_delete_webhook "$access_token" "$owner_repo" "$webhook_url" 2>&1 || echo "    (GitHub webhook deletion failed or not found)"
+                fi
+                
+                # Delete deploy key
+                github_delete_deploy_key "$access_token" "$owner_repo" "faber-$username" 2>&1 || echo "    (GitHub deploy key deletion failed or not found)"
+                
+                # Clear token
+                unset access_token
+            else
+                echo "    (Failed to authenticate with GitHub - skipping repository cleanup)"
+            fi
+        fi
     fi
     
     # Delete local webhook secret
