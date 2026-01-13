@@ -185,15 +185,8 @@ github_device_flow_auth() {
     fi
     
     # Step 2: Prompt user to authorize (output to stderr so it doesn't interfere with token return)
-    echo "" >&2
-    echo "─────────────────────────────────────" >&2
-    echo -e "${YELLOW}${BOLD}GitHub Authorization Required${NC}" >&2
-    echo "" >&2
-    echo -e "  1. Open: ${CYAN}${BOLD}$verification_uri${NC}" >&2
-    echo -e "  2. Enter code: ${GREEN}${BOLD}$user_code${NC}" >&2
-    echo "" >&2
-    echo "Waiting for authorization..." >&2
-    echo "─────────────────────────────────────" >&2
+    # Single-line format for MCP compatibility (MCP only shows first line of output)
+    echo -e "🔐 GitHub Auth Required: Open $verification_uri and enter code: $user_code" >&2
     
     # Step 3: Poll for authorization
     local access_token=""
@@ -205,9 +198,9 @@ github_device_flow_auth() {
         elapsed=$((elapsed + interval))
         poll_count=$((poll_count + 1))
         
-        # Show progress every 5 polls
+        # Show progress every 5 polls (include code for MCP visibility)
         if [ $((poll_count % 5)) -eq 0 ]; then
-            printf "." >&2
+            echo -e "⏳ Waiting for authorization... Code: $user_code" >&2
         fi
         
         local token_response=$(curl -s -X POST \
@@ -223,9 +216,7 @@ github_device_flow_auth() {
             interval=$((interval + 5))
             continue
         elif [ -n "$error" ] && [ "$error" != "null" ]; then
-            echo "" >&2
-            echo -e "${RED}Error: Authorization failed - $error${NC}" >&2
-            echo ""
+            echo -e "${RED}❌ Error: Authorization failed - $error${NC}" >&2
             return 1
         fi
         
@@ -236,14 +227,11 @@ github_device_flow_auth() {
     done
     
     if [ -z "$access_token" ] || [ "$access_token" = "null" ]; then
-        echo "" >&2
-        echo -e "${RED}Error: Authorization timed out${NC}" >&2
-        echo ""
+        echo -e "${RED}❌ Error: Authorization timed out${NC}" >&2
         return 1
     fi
     
-    echo "" >&2
-    echo -e "${GREEN}✓ Authorized!${NC}" >&2
+    echo -e "${GREEN}✅ Authorized!${NC}" >&2
     
     # Return the token (to stdout)
     echo "$access_token"
