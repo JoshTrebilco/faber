@@ -12,6 +12,7 @@ CONFIG_FILE="${STORAGE_DIR}/config.json"
 WEBHOOKS_FILE="${STORAGE_DIR}/webhooks.json"
 VERSION_FILE="${STORAGE_DIR}/version.json"
 REVERB_FILE="${STORAGE_DIR}/reverb.json"
+GITHUB_FILE="${STORAGE_DIR}/github.json"
 
 # Initialize storage
 init_storage() {
@@ -34,6 +35,13 @@ init_storage() {
     fi
     chmod 640 "${WEBHOOKS_FILE}"
     chown root:www-data "${WEBHOOKS_FILE}"
+    
+    # GitHub App config needs www-data read access for deploy scripts
+    if [ ! -f "${GITHUB_FILE}" ]; then
+        echo "{}" > "${GITHUB_FILE}"
+    fi
+    chmod 640 "${GITHUB_FILE}"
+    chown root:www-data "${GITHUB_FILE}"
     
     # Sensitive files - keep restricted (passwords, secrets)
     for file in "${DATABASES_FILE}" "${CONFIG_FILE}"; do
@@ -119,6 +127,32 @@ set_config() {
     local key=$1
     local value=$2
     json_set "${CONFIG_FILE}" "$key" "\"$value\""
+}
+
+#############################################
+# GitHub App Config Helpers
+#############################################
+
+# Get GitHub App config value
+get_github_config() {
+    local key=$1
+    local value=$(json_get "${GITHUB_FILE}" "$key")
+    
+    if [ "$value" = "null" ] || [ -z "$value" ]; then
+        echo ""
+    else
+        echo "$value"
+    fi
+}
+
+# Set GitHub App config value
+set_github_config() {
+    local key=$1
+    local value=$2
+    json_set "${GITHUB_FILE}" "$key" "\"$value\""
+    # Ensure permissions are maintained
+    chmod 640 "${GITHUB_FILE}"
+    chown root:www-data "${GITHUB_FILE}"
 }
 
 #############################################

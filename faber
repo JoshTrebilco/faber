@@ -172,6 +172,9 @@ main() {
         webhook)
             cmd_webhook "$@"
             ;;
+        github)
+            cmd_github "$@"
+            ;;
         reverb)
             cmd_reverb "$@"
             ;;

@@ -481,6 +481,41 @@ cmd_deploy() {
     fi
 }
 
+# GitHub App commands
+cmd_github() {
+    local subcmd=$1
+    shift
+
+    case $subcmd in
+        set)
+            local key=$1
+            local value=$2
+            if [ -z "$key" ] || [ -z "$value" ]; then
+                echo -e "${RED}Error: Key and value required${NC}"
+                echo "Usage: faber github set <key> <value>"
+                echo "Keys: app_id, private_key, slug"
+                exit 1
+            fi
+            set_github_config "github_app_$key" "$value"
+            echo -e "${GREEN}Set github_app_$key${NC}"
+            ;;
+        show)
+            echo -e "${BOLD}GitHub App Configuration${NC}"
+            echo "─────────────────────────────────────"
+            local app_id=$(get_github_config "github_app_id")
+            local slug=$(get_github_config "github_app_slug")
+            local has_key=$(get_github_config "github_app_private_key")
+            echo -e "App ID:      ${CYAN}${app_id:-(not set)}${NC}"
+            echo -e "Slug:        ${CYAN}${slug:-(not set)}${NC}"
+            echo -e "Private Key: ${CYAN}${has_key:+configured}${has_key:-not set}${NC}"
+            ;;
+        *)
+            echo "Usage: faber github <set|show>"
+            exit 1
+            ;;
+    esac
+}
+
 # Update command
 cmd_update() {
     if check_help_requested "$@"; then

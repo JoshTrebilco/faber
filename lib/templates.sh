@@ -13,8 +13,8 @@ create_deploy_script() {
     local home_dir="/home/$username"
     local deploy_script="$home_dir/deploy.sh"
     
-    # Convert repository URL to SSH format
-    local clone_url=$(git_url_to_ssh "$repository")
+    # Repository URL is already validated as HTTPS
+    local clone_url="$repository"
     
     # Generate the user's deploy.sh with hooks
     cat > "$deploy_script" <<DEPLOYEOF

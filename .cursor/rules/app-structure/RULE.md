@@ -27,10 +27,7 @@ Each app user has this structure at `/home/{username}/`:
 │   │   └── views/
 │   └── logs/
 ├── logs/                                 # App logs (nginx, etc.)
-├── .ssh/                                 # SSH keys for git
-│   └── id_rsa
 ├── .env                                  # Shared .env (symlinked from releases)
-├── gitkey.pub                            # Public key for deploy keys
 └── deploy.sh                             # Deployment script
 ```
 
@@ -55,7 +52,6 @@ Each release has these symlinks:
 ## Permissions
 
 - Home directory: `755` (traversable for nginx)
-- `.ssh/`: `700`
 - Storage: `775` (writable by app)
 - Release files: `640` (readable by nginx via group)
 - Release dirs: `750`

@@ -90,6 +90,38 @@ app_create() {
         exit 1
     fi
     
+    # Validate HTTPS URL format (reject SSH)
+    if ! github_validate_https_url "$repository"; then
+        exit 1
+    fi
+    
+    # Validate GitHub App is configured
+    if ! github_app_is_configured; then
+        echo -e "${RED}Error: GitHub App not configured${NC}"
+        echo ""
+        echo "Configure the GitHub App credentials:"
+        echo "  faber github set app_id \"YOUR_APP_ID\""
+        echo "  faber github set private_key \"\$(cat /path/to/key.pem)\""
+        echo "  faber github set slug \"your-app-name\""
+        exit 1
+    fi
+    
+    # Check GitHub App is installed on this repo (fail fast)
+    local owner_repo=$(github_parse_repo "$repository")
+    echo -e "${CYAN}Checking GitHub App access...${NC}"
+    if ! github_app_check_installation "$owner_repo"; then
+        local app_slug=$(get_github_config "github_app_slug")
+        app_slug=${app_slug:-"faber-deploy"}
+        echo -e "${RED}Error: GitHub App not installed on $owner_repo${NC}"
+        echo ""
+        echo "Install the Faber GitHub App on this repository:"
+        echo -e "${CYAN}https://github.com/apps/$app_slug/installations/new${NC}"
+        echo ""
+        echo "After installing, re-run this command."
+        exit 1
+    fi
+    echo -e "${GREEN}✓ GitHub App access confirmed${NC}"
+    
     # Check if app already exists
     if json_has_key "${APPS_FILE}" "$username"; then
         echo -e "${RED}Error: App '$username' already exists${NC}"
@@ -121,72 +153,30 @@ app_create() {
     local release_name=$(date +%Y%m%d%H%M%S)
     local release_dir="$home_dir/releases/$release_name"
     
-    mkdir -p "$home_dir"/{releases,logs,.ssh}
+    mkdir -p "$home_dir"/{releases,logs}
     mkdir -p "$home_dir/storage"/{app,framework,logs}
     mkdir -p "$home_dir/storage/framework"/{cache,sessions,views}
     
     chown -R "$username:$username" "$home_dir"
     chmod 755 "$home_dir"  # Allow traversal (needed for nginx to reach current)
     chmod 755 "$home_dir/logs"  # Logs readable by web server if needed
-    chmod 700 "$home_dir/.ssh"  # SSH keys only for owner
     chmod -R 775 "$home_dir/storage"  # Shared storage needs to be writable
     
-    # Generate SSH key pair for Git
-    echo "  → Generating SSH key pair for Git..."
-    sudo -u "$username" ssh-keygen -t rsa -b 4096 -C "${username}@faber" -f "$home_dir/.ssh/id_rsa" -N "" >/dev/null 2>&1
-    cp "$home_dir/.ssh/id_rsa.pub" "$home_dir/gitkey.pub"
-    chown "$username:$username" "$home_dir/gitkey.pub"
-    chmod 644 "$home_dir/gitkey.pub"
-    
-    # Create SSH config and convert URL to SSH format
-    git_create_ssh_config "$username" "$home_dir"
-    local clone_url=$(git_url_to_ssh "$repository")
-    
-    # Parse repository and check if it's GitHub
+    # Repository URL is already validated as HTTPS
     local owner_repo=$(github_parse_repo "$repository")
-    local github_access_token=""
-    local github_setup_failed=false
     
-    if [ -n "$owner_repo" ]; then
-        # It's a GitHub repo - check if OAuth is configured
-        local github_client_id=$(get_config "github_client_id")
-        
-        if [ -n "$github_client_id" ]; then
-            echo "  → Setting up GitHub repository access..."
-            
-            # Get token once with combined scopes for both deploy key and webhook
-            github_access_token=$(github_device_flow_auth "repo admin:repo_hook")
-            
-            if [ -n "$github_access_token" ]; then
-                # Add deploy key using the token
-                local public_key=$(cat "$home_dir/gitkey.pub")
-                if ! github_add_deploy_key "$github_access_token" "$owner_repo" "faber-$username" "$public_key"; then
-                    echo -e "  ${YELLOW}⚠ Could not add deploy key automatically${NC}"
-                    github_setup_failed=true
-                fi
-            else
-                echo -e "  ${RED}Error: Failed to authenticate with GitHub${NC}"
-                github_setup_failed=true
-            fi
-        fi
-    fi
+    # Get installation token for cloning
+    local clone_token=$(github_app_get_token "$owner_repo")
+    local auth_url="https://x-access-token:${clone_token}@github.com/${owner_repo}.git"
     
-    # If GitHub setup failed or not a GitHub repo, show manual instructions
-    if [ "$github_setup_failed" = true ] || [ -z "$owner_repo" ]; then
-        echo "  → Adding deploy key for SSH access..."
-        echo -e "  ${YELLOW}  Please add this key as a deploy key to your repository:${NC}"
-        echo ""
-        cat "$home_dir/gitkey.pub"
-        echo ""
-        read -p "  Press Enter once you've added the key to continue, or Ctrl+C to abort..."
-    fi
-    
-    # Clone repository into first release
     echo "  → Cloning repository..."
-    sudo -u "$username" git clone -b "$branch" --depth 1 "$clone_url" "$release_dir" 2>/dev/null
+    sudo -u "$username" git clone -b "$branch" --depth 1 "$auth_url" "$release_dir" 2>/dev/null
+    
+    # Store plain HTTPS URL (without token) as remote for future pulls
+    sudo -u "$username" git -C "$release_dir" remote set-url origin "$repository"
+    
     if [ $? -ne 0 ]; then
         echo -e "${RED}Error: Failed to clone repository${NC}"
-        echo -e "${YELLOW}Ensure the deploy key was added correctly.${NC}"
         delete_system_user "$username"
         rm -rf "$home_dir"
         exit 1
@@ -325,17 +315,6 @@ EOF
     echo -e "${YELLOW}${BOLD}IMPORTANT: Save these credentials!${NC}"
     echo ""
     
-    # Show SSH key only if private repo and deploy key wasn't added automatically
-    if [ "$repo_visibility" = "private" ] && [ "$deploy_key_failed" = true ]; then
-        echo -e "${CYAN}Git SSH Public Key:${NC}"
-        echo -e "Add this key to your Git provider (GitHub/GitLab) for private repositories:"
-        echo ""
-        cat "$home_dir/gitkey.pub"
-        echo ""
-        echo -e "Key also available at: ${CYAN}$home_dir/gitkey.pub${NC}"
-        echo ""
-    fi
-    
     # Show manual webhook instructions only if auto-create failed or wasn't attempted
     if [ "$webhook_create_failed" = true ] || [ -z "$github_client_id" ]; then
         echo -e "${CYAN}${BOLD}GitHub Webhook (Auto-Deploy):${NC}"
@@ -432,15 +411,6 @@ app_show() {
     echo -e "Total:      ${CYAN}$release_count${NC}"
     if [ -d "$home_dir/releases" ] && [ "$release_count" -gt 0 ]; then
         echo -e "Available:  ${CYAN}$(ls -1d "$home_dir/releases"/*/ 2>/dev/null | xargs -n1 basename | tr '\n' ' ')${NC}"
-    fi
-    echo ""
-    echo -e "${BOLD}Git SSH Public Key:${NC}"
-    if [ -f "$home_dir/gitkey.pub" ]; then
-        cat "$home_dir/gitkey.pub"
-        echo ""
-        echo -e "Location: ${CYAN}$home_dir/gitkey.pub${NC}"
-    else
-        echo -e "${RED}Not found${NC}"
     fi
     
     # Show webhook information
@@ -804,34 +774,22 @@ app_delete() {
     echo "  → Deleting log rotation config..."
     rm -f "/etc/logrotate.d/faber-$username"
     
-    # Delete GitHub webhook and deploy key if OAuth is configured
-    local github_client_id=$(get_config "github_client_id")
+    # Delete GitHub webhook using app token
     local repository=$(get_app_field "$username" "repository")
     
-    if [ -n "$github_client_id" ] && [ -n "$repository" ] && [ "$repository" != "null" ]; then
+    if [ -n "$repository" ] && [ "$repository" != "null" ]; then
         local owner_repo=$(github_parse_repo "$repository")
         
-        if [ -n "$owner_repo" ]; then
-            echo "  → Removing GitHub repository access..."
-            
-            # Get token once with combined scopes for both webhook and deploy key deletion
-            local access_token=$(github_device_flow_auth "repo admin:repo_hook")
+        if [ -n "$owner_repo" ] && github_app_is_configured; then
+            echo "  → Removing GitHub webhook..."
+            local access_token=$(github_app_get_token "$owner_repo")
             
             if [ -n "$access_token" ]; then
-                # Delete webhook
                 local webhook_domain=$(get_config "webhook_domain")
                 if [ -n "$webhook_domain" ]; then
                     local webhook_url="https://$webhook_domain/webhook/$username"
-                    github_delete_webhook "$access_token" "$owner_repo" "$webhook_url" 2>&1 || echo "    (GitHub webhook deletion failed or not found)"
+                    github_delete_webhook "$access_token" "$owner_repo" "$webhook_url" 2>&1 || true
                 fi
-                
-                # Delete deploy key
-                github_delete_deploy_key "$access_token" "$owner_repo" "faber-$username" 2>&1 || echo "    (GitHub deploy key deletion failed or not found)"
-                
-                # Clear token
-                unset access_token
-            else
-                echo "    (Failed to authenticate with GitHub - skipping repository cleanup)"
             fi
         fi
     fi

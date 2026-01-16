@@ -15,7 +15,7 @@ Commands follow this pattern: `faber {resource} {action} [options]`
 
 Examples:
 
-- `faber app create --user=myapp --repository=git@github.com:user/repo.git`
+- `faber app create --user=myapp --repository=https://github.com/user/repo.git`
 - `faber domain create --domain=example.com --app=myapp`
 - `faber database create --name=mydb`
 

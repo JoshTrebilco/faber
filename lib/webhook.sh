@@ -119,8 +119,8 @@ webhook_delete() {
     echo -e "${CYAN}Deleting webhook for ${BOLD}$owner_repo${NC}"
     echo ""
     
-    # Get access token via device flow
-    local access_token=$(github_device_flow_auth "admin:repo_hook")
+    # Get access token via GitHub App
+    local access_token=$(github_app_get_token "$owner_repo")
     
     if [ -z "$access_token" ]; then
         echo -e "${RED}Error: Failed to get GitHub access token${NC}"
@@ -191,21 +191,11 @@ webhook_create() {
         exit 1
     fi
     
-    # Check if GitHub OAuth is configured
-    local github_client_id=$(get_config "github_client_id")
-    
-    if [ -z "$github_client_id" ]; then
-        echo -e "${RED}Error: GitHub OAuth Client ID not configured${NC}"
-        echo "Run the installer again or set it manually:"
-        echo "  ${CYAN}faber config set github_client_id <your_client_id>${NC}"
-        exit 1
-    fi
-    
     echo ""
     echo -e "${CYAN}Creating GitHub webhook for ${BOLD}$owner_repo${NC}"
     
-    # Get access token via Device Flow OAuth
-    local access_token=$(github_device_flow_auth "admin:repo_hook")
+    # Get access token via GitHub App
+    local access_token=$(github_app_get_token "$owner_repo")
     
     if [ -z "$access_token" ]; then
         echo -e "${RED}Error: Failed to authenticate with GitHub${NC}"

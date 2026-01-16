@@ -508,7 +508,7 @@ show_help_subcommand() {
             echo ""
             echo -e "${BOLD}REQUIRED:${NC}"
             echo -e "  ${CYAN}--user=<name>${NC}          System username (lowercase, alphanumeric)"
-            echo -e "  ${CYAN}--repository=<url>${NC}     Git repository URL (HTTPS or SSH)"
+            echo -e "  ${CYAN}--repository=<url>${NC}     Git repository URL (HTTPS)"
             echo ""
             echo -e "${BOLD}OPTIONAL:${NC}"
             echo -e "  ${CYAN}--php=<version>${NC}        PHP version (default: 8.4)"
@@ -524,7 +524,7 @@ show_help_subcommand() {
             echo -e "${BOLD}EXAMPLES:${NC}"
             echo -e "  faber stack create"
             echo -e "  faber stack create --user=mysite --repository=https://github.com/user/repo.git --domain=example.com"
-            echo -e "  faber stack create --user=mysite --repository=git@github.com:user/repo.git --php=8.3 --branch=develop"
+            echo -e "  faber stack create --user=mysite --repository=https://github.com/user/repo.git --php=8.3 --branch=develop"
             echo ""
             ;;
         stack:delete)
@@ -552,7 +552,7 @@ show_help_subcommand() {
             echo ""
             echo -e "${BOLD}REQUIRED:${NC}"
             echo -e "  ${CYAN}--user=<name>${NC}           System username (lowercase, alphanumeric)"
-            echo -e "  ${CYAN}--repository=<url>${NC}      Git repository URL (HTTPS or SSH)"
+            echo -e "  ${CYAN}--repository=<url>${NC}      Git repository URL (HTTPS)"
             echo ""
             echo -e "${BOLD}OPTIONAL:${NC}"
             echo -e "  ${CYAN}--php=<version>${NC}         PHP version (default: 8.4)"
@@ -562,7 +562,7 @@ show_help_subcommand() {
             echo -e "${BOLD}EXAMPLES:${NC}"
             echo -e "  faber app create"
             echo -e "  faber app create --user=mysite --repository=https://github.com/user/repo.git"
-            echo -e "  faber app create --user=mysite --repository=git@github.com:user/repo.git --php=8.3 --branch=develop"
+            echo -e "  faber app create --user=mysite --repository=https://github.com/user/repo.git --php=8.3 --branch=develop"
             echo ""
             ;;
         app:list)

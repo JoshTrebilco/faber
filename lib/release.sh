@@ -53,6 +53,72 @@ run_cmd() {
     return 0
 }
 
+#############################################
+# GitHub App Authentication (Inline)
+#############################################
+
+# GitHub App config file
+GITHUB_FILE="${FABER_DATA_DIR:-/etc/faber}/github.json"
+
+# Parse owner/repo from REPOSITORY URL
+github_parse_repo_inline() {
+    local url=$1
+    if [[ "$url" =~ github\.com[:/]([^/]+)/([^/.]+) ]]; then
+        echo "${BASH_REMATCH[1]}/${BASH_REMATCH[2]}"
+    fi
+}
+
+# Generate JWT for GitHub App (inline version for deploy scripts)
+github_generate_jwt_inline() {
+    local app_id=$(jq -r '.github_app_id // empty' "$GITHUB_FILE" 2>/dev/null)
+    local private_key=$(jq -r '.github_app_private_key // empty' "$GITHUB_FILE" 2>/dev/null)
+
+    if [ -z "$app_id" ] || [ -z "$private_key" ]; then
+        return 1
+    fi
+
+    local header='{"alg":"RS256","typ":"JWT"}'
+    local now=$(date +%s)
+    local iat=$((now - 60))
+    local exp=$((now + 600))
+    local payload="{\"iat\":$iat,\"exp\":$exp,\"iss\":\"$app_id\"}"
+
+    local header_b64=$(echo -n "$header" | openssl base64 -e -A | tr '+/' '-_' | tr -d '=')
+    local payload_b64=$(echo -n "$payload" | openssl base64 -e -A | tr '+/' '-_' | tr -d '=')
+    local signature=$(echo -n "${header_b64}.${payload_b64}" | \
+        openssl dgst -sha256 -sign <(echo "$private_key") | \
+        openssl base64 -e -A | tr '+/' '-_' | tr -d '=')
+
+    echo "${header_b64}.${payload_b64}.${signature}"
+}
+
+# Get installation token (inline version for deploy scripts)
+github_get_token_inline() {
+    local owner_repo=$1
+    local jwt=$(github_generate_jwt_inline)
+
+    if [ -z "$jwt" ]; then
+        return 1
+    fi
+
+    local install_response=$(curl -s \
+        "https://api.github.com/repos/$owner_repo/installation" \
+        -H "Authorization: Bearer $jwt" \
+        -H "Accept: application/vnd.github+json")
+
+    local installation_id=$(echo "$install_response" | jq -r '.id // empty')
+    if [ -z "$installation_id" ]; then
+        return 1
+    fi
+
+    local token_response=$(curl -s -X POST \
+        "https://api.github.com/app/installations/$installation_id/access_tokens" \
+        -H "Authorization: Bearer $jwt" \
+        -H "Accept: application/vnd.github+json")
+
+    echo "$token_response" | jq -r '.token // empty'
+}
+
 # Cleanup failed release
 cleanup_failed_release() {
     if [ -d "$RELEASE_DIR" ] && [ -n "$RELEASE_DIR" ]; then
@@ -109,12 +175,30 @@ run_deployment() {
     mkdir -p "$RELEASE_DIR"
     print_step "Release: $RELEASE_NAME"
     
-    # Step 2: Clone repository
+    # Step 2: Clone repository with GitHub App token
+    local owner_repo=$(github_parse_repo_inline "$REPOSITORY")
+    if [ -z "$owner_repo" ]; then
+        echo "✗ Could not parse GitHub repository from: $REPOSITORY"
+        exit 1
+    fi
+    
+    print_step "Getting deployment token..."
+    local token=$(github_get_token_inline "$owner_repo")
+    if [ -z "$token" ]; then
+        echo "✗ Failed to get GitHub token"
+        exit 1
+    fi
+    
+    local auth_url="https://x-access-token:${token}@github.com/${owner_repo}.git"
+    
     print_step "Cloning $BRANCH branch..."
-    if ! run_cmd git clone -b "$BRANCH" --depth 1 "$REPOSITORY" "$RELEASE_DIR"; then
+    if ! run_cmd git clone -b "$BRANCH" --depth 1 "$auth_url" "$RELEASE_DIR"; then
         echo "✗ Failed to clone repository"
         exit 1
     fi
+    
+    # Reset remote to plain HTTPS (no token stored)
+    git -C "$RELEASE_DIR" remote set-url origin "$REPOSITORY"
     
     cd "$RELEASE_DIR" || exit 1
     
